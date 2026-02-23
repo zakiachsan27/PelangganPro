@@ -1,0 +1,32 @@
+# robots.txt for JagoBikinWebsite
+# Allow all search engines to crawl everything
+
+User-agent: *
+Allow: /
+
+# Disallow certain paths if needed (uncomment if applicable)
+# Disallow: /admin/
+# Disallow: /api/
+# Disallow: /.git/
+
+# Sitemap location
+Sitemap: https://jagobikinwebsite.com/sitemap.xml
+
+# Crawl-delay (optional, helps prevent server overload)
+Crawl-delay: 1
+
+# Specific rules for Google
+User-agent: Googlebot
+Allow: /
+
+# Specific rules for Bingbot
+User-agent: Bingbot
+Allow: /
+
+# Allow image indexing
+User-agent: Googlebot-Image
+Allow: /
+
+# Allow mobile indexing
+User-agent: Googlebot-Mobile
+Allow: /

@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Add comprehensive SEO optimization for Google indexing\n\n- Add 40+ meta tags (title, description, keywords, OG, Twitter Cards)\n- Add structured data (JSON-LD) for rich snippets with business info\n- Create robots.txt to allow all search engine crawlers\n- Create sitemap.xml with all main pages and sections\n- Add PWA manifest (site.webmanifest) for mobile optimization\n- Optimize semantic HTML with accessibility features (skip nav, ARIA)\n- Improve build config with minification and asset optimization\n- Update Portfolio: change Bhayongbhong Derek image to Cloudinary\n- Add comprehensive SEO documentation (guides, checklists, setup)\n\nSEO Features:\n- Primary meta tags with Indonesian keywords\n- Open Graph tags for Facebook sharing (1200x630 image)\n- Twitter Cards for Twitter sharing\n- Canonical URLs to prevent duplicate content\n- Language declaration (id_ID)\n- Schema.org ProfessionalService markup\n- Business offers with pricing (IDR 3M, 8M, 25M)\n- Aggregate rating (5 stars, 100 reviews)\n- Service catalog with descriptions\n\nTechnical improvements:\n- Terser minification for smaller bundle size\n- CSS minification enabled\n- Better chunk splitting for faster loading\n- Asset hashing for browser caching\n- Public folder with SEO assets\n\nDocumentation added:\n- SEO-GUIDE.md: Complete optimization guide\n- SEO-CHECKLIST.md: Pre/post-launch tasks\n- PRERENDER-SETUP.md: Deployment instructions\n- README-SEO.md: Summary and next steps\n\nReady for deployment to Vercel/Netlify and Google Search Console submission.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
