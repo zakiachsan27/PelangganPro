@@ -5,6 +5,7 @@ const AUTH_KEY = 'pelangganpro_auth';
 export const authStorage = {
   async getAuth(): Promise<AuthData | null> {
     try {
+      // Try background script first
       const response = await chrome.runtime.sendMessage({ type: 'GET_AUTH' });
       
       if (response?.success && response.data) {
@@ -17,8 +18,8 @@ export const authStorage = {
           isExpired: Date.now() > auth.expiresAt
         });
         
-        // Check expiration - tambah buffer 5 menit
-        if (Date.now() > (auth.expiresAt - 5 * 60 * 1000)) {
+        // Check expiration - buffer 30 menit (lebih longgar)
+        if (Date.now() > (auth.expiresAt - 30 * 60 * 1000)) {
           console.log('[AuthStorage] Token expired or about to expire');
           return null;
         }
@@ -30,6 +31,27 @@ export const authStorage = {
       return null;
     } catch (error) {
       console.error('[AuthStorage] Error:', error);
+      // Fallback: try direct storage access
+      return this.getAuthDirect();
+    }
+  },
+
+  // Fallback: direct storage access
+  async getAuthDirect(): Promise<AuthData | null> {
+    try {
+      const result = await chrome.storage.local.get(AUTH_KEY);
+      const auth = result[AUTH_KEY] as AuthData | undefined;
+      
+      if (auth && auth.token) {
+        console.log('[AuthStorage] Direct access success');
+        if (Date.now() > (auth.expiresAt - 30 * 60 * 1000)) {
+          return null;
+        }
+        return auth;
+      }
+      return null;
+    } catch (error) {
+      console.error('[AuthStorage] Direct access error:', error);
       return null;
     }
   },
