@@ -1,0 +1,43 @@
+# Relasiq CRM - AI Coding Conventions
+
+## Tech Stack
+- Next.js 14+ App Router (src/app/)
+- TypeScript strict mode
+- Tailwind CSS v4 + shadcn/ui (New York style)
+- Supabase (PostgreSQL, Auth, Storage, Realtime)
+- @dnd-kit for drag-and-drop
+- @tanstack/react-table for data tables
+- Zod for validation
+- React Hook Form for forms
+- date-fns for dates
+- lucide-react for icons
+
+## File Conventions
+- Components: PascalCase (e.g., ContactForm.tsx → export function ContactForm)
+- Utilities: camelCase (e.g., formatCurrency.ts)
+- Types: src/types/index.ts (central type definitions)
+- Pages: src/app/(dashboard)/[module]/page.tsx
+- Components per feature: src/components/[feature]/
+
+## Component Patterns
+- Server Components by default
+- "use client" only when interactivity is needed (forms, DnD, dropdowns, state)
+- Use shadcn/ui primitives from @/components/ui/
+- Forms: React Hook Form + Zod + shadcn Form components
+- Tables: @tanstack/react-table + shared DataTable wrapper
+- All monetary values in IDR, use formatCurrency() from @/lib/format
+
+## Naming
+- Database columns: snake_case
+- TypeScript: camelCase for variables, PascalCase for types/interfaces
+- CSS: Tailwind utility classes only, no custom CSS files
+- Routes: kebab-case (e.g., /forgot-password)
+
+## Multi-tenant
+- Every data table has org_id
+- RLS policies enforce tenant isolation
+- Always pass org_id explicitly on inserts
+
+## Imports
+- Use @/ alias for all imports
+- Group: React/Next → external libs → @/components → @/lib → @/types

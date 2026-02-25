@@ -1,0 +1,22 @@
+services:
+  waha:
+    image: devlikeapro/waha
+    container_name: pelangganpro-waha
+    restart: unless-stopped
+    ports:
+      - "3003:3000"
+    environment:
+      # Auth
+      WHATSAPP_API_KEY: ${WAHA_API_KEY:-pelangganpro-waha-key-2026}
+      # Engine
+      WAHA_DEFAULT_ENGINE: NOWEB
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      # Webhooks are configured per-session via API (createWahaSession)
+      # so we don't set WHATSAPP_HOOK_URL here to avoid duplicate webhooks.
+      # Dashboard
+      WAHA_DASHBOARD_ENABLED: "true"
+    volumes:
+      - waha_sessions:/app/.sessions
+
+volumes:
+  waha_sessions:

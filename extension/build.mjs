@@ -1,0 +1,117 @@
+#!/usr/bin/env node
+import * as esbuild from 'esbuild';
+import fs from 'fs';
+import path from 'path';
+
+const isDev = process.argv.includes('--watch') || process.argv.includes('--dev');
+const isWatch = process.argv.includes('--watch');
+
+const outDir = 'dist';
+
+if (fs.existsSync(outDir)) {
+  fs.rmSync(outDir, { recursive: true });
+}
+fs.mkdirSync(outDir, { recursive: true });
+
+function copyStatic() {
+  const staticFiles = ['manifest.json', 'popup.html'];
+  staticFiles.forEach(file => {
+    if (fs.existsSync(file)) {
+      fs.copyFileSync(file, path.join(outDir, file));
+    }
+  });
+
+  if (fs.existsSync('public/icons')) {
+    fs.mkdirSync(path.join(outDir, 'icons'), { recursive: true });
+    fs.readdirSync('public/icons').forEach(file => {
+      fs.copyFileSync(path.join('public/icons', file), path.join(outDir, 'icons', file));
+    });
+  }
+}
+
+function generateCSS() {
+  const css = `
+* { margin: 0; padding: 0; box-sizing: border-box; }
+.pp-sidebar { width: 320px; height: 100vh; background: #fff; border-left: 1px solid #e5e7eb; display: flex; flex-direction: column; font-family: system-ui, sans-serif; font-size: 14px; overflow-y: auto; }
+.pp-header { padding: 16px; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; }
+.pp-section { padding: 12px 16px; border-bottom: 1px solid #f3f4f6; }
+.pp-title { font-weight: 600; font-size: 12px; text-transform: uppercase; color: #6b7280; margin-bottom: 8px; }
+.pp-tag { display: inline-flex; padding: 2px 8px; border-radius: 9999px; font-size: 11px; background: #e0e7ff; color: #4338ca; margin: 0 4px 4px 0; }
+.pp-button { width: 100%; padding: 8px 12px; border-radius: 6px; border: 1px solid #d1d5db; background: white; font-size: 13px; cursor: pointer; }
+.pp-button-primary { background: #4f46e5; color: white; border-color: #4f46e5; }
+.pp-input, .pp-textarea, .pp-select { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+.pp-textarea { min-height: 80px; resize: vertical; }
+.pp-note-item { padding: 10px; background: #f9fafb; border-radius: 6px; margin-bottom: 8px; font-size: 13px; }
+.pp-note-date { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+.pp-empty { text-align: center; padding: 24px; color: #9ca3af; }
+.pp-error { padding: 16px; text-align: center; color: #dc2626; }
+.pp-loading { display: flex; justify-content: center; align-items: center; padding: 32px; }
+.pp-spinner { width: 24px; height: 24px; border: 2px solid #e5e7eb; border-top-color: #4f46e5; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.pp-deal-value { font-size: 18px; font-weight: 600; color: #059669; }
+.pp-stage-badge { display: inline-flex; padding: 4px 12px; border-radius: 9999px; font-size: 12px; background: #dbeafe; color: #1e40af; }
+.pp-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; }
+.pp-login-prompt { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 24px; text-align: center; }
+.pp-login-prompt-icon { width: 48px; height: 48px; margin-bottom: 16px; color: #9ca3af; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+`;
+  fs.writeFileSync(path.join(outDir, 'content.css'), css);
+}
+
+const commonConfig = {
+  bundle: true,
+  minify: !isDev,
+  sourcemap: isDev,
+  target: ['chrome110'],
+  jsx: 'transform',
+  jsxFactory: 'h',
+  jsxFragment: 'Fragment',
+};
+
+async function build() {
+  copyStatic();
+  generateCSS();
+
+  await Promise.all([
+    esbuild.build({
+      ...commonConfig,
+      entryPoints: ['src/background/background.ts'],
+      outfile: path.join(outDir, 'background.js'),
+      format: 'iife',
+      platform: 'browser'
+    }),
+    esbuild.build({
+      ...commonConfig,
+      entryPoints: ['src/content/content-script.tsx'],
+      outfile: path.join(outDir, 'content.js'),
+      format: 'iife',
+      platform: 'browser'
+    }),
+    esbuild.build({
+      ...commonConfig,
+      entryPoints: ['src/popup/popup.tsx'],
+      outfile: path.join(outDir, 'popup.js'),
+      format: 'iife',
+      platform: 'browser'
+    })
+  ]);
+
+  console.log('✅ Build complete');
+}
+
+if (isWatch) {
+  const ctx = await esbuild.context({
+    ...commonConfig,
+    entryPoints: ['src/background/background.ts', 'src/content/content-script.tsx', 'src/popup/popup.tsx'],
+    outdir: outDir,
+    format: 'iife',
+    platform: 'browser'
+  });
+  await ctx.watch();
+} else {
+  build().catch(err => {
+    console.error('Build failed:', err);
+    process.exit(1);
+  });
+}
