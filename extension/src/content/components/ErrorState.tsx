@@ -2,10 +2,11 @@ import { h } from 'preact';
 
 interface ErrorStateProps {
   type: 'not_authenticated' | 'not_found' | 'network_error' | 'unknown';
+  message?: string;
   onRetry?: () => void;
 }
 
-export function ErrorState({ type, onRetry }: ErrorStateProps) {
+export function ErrorState({ type, message: customMessage, onRetry }: ErrorStateProps) {
   const messages = {
     not_authenticated: {
       title: 'Belum Login',
@@ -19,12 +20,12 @@ export function ErrorState({ type, onRetry }: ErrorStateProps) {
     },
     network_error: {
       title: 'Koneksi Error',
-      message: 'Gagal terhubung ke server. Coba lagi?',
+      message: customMessage || 'Gagal terhubung ke server. Coba lagi?',
       action: 'Coba Lagi'
     },
     unknown: {
       title: 'Terjadi Kesalahan',
-      message: 'Silakan coba lagi nanti',
+      message: customMessage || 'Silakan coba lagi nanti',
       action: 'Coba Lagi'
     }
   };

@@ -51,6 +51,14 @@ function Popup() {
         expiresAt: result.expiresAt || Date.now() + 24 * 60 * 60 * 1000
       });
 
+      // Notify background script to trigger refresh in content scripts
+      try {
+        await chrome.runtime.sendMessage({ type: 'AUTH_CHANGED' });
+        console.log('[Popup] Auth change notification sent');
+      } catch (err) {
+        console.error('[Popup] Failed to notify background:', err);
+      }
+
       setIsLoggedIn(true);
       setUserInfo({ orgId: result.orgId });
     } catch (err) {
@@ -62,6 +70,15 @@ function Popup() {
 
   const handleLogout = async () => {
     await authStorage.clearAuth();
+    
+    // Notify background script to trigger refresh in content scripts
+    try {
+      await chrome.runtime.sendMessage({ type: 'AUTH_CHANGED' });
+      console.log('[Popup] Auth change notification sent');
+    } catch (err) {
+      console.error('[Popup] Failed to notify background:', err);
+    }
+    
     setIsLoggedIn(false);
     setEmail('');
     setPassword('');
@@ -155,7 +172,7 @@ function Popup() {
           margin: '0 auto 12px',
           color: 'white',
           fontSize: '24px',
-          fontWeight: 'bold'
+            fontWeight: 'bold'
         }}>
           P
         </div>
