@@ -2,7 +2,6 @@ import { h } from 'preact';
 import type { ContactData } from '../../types';
 import { useState } from 'preact/hooks';
 import { crmClient } from '../../api/crm-client';
-import { authStorage } from '../../storage/auth-storage';
 
 interface NotesListProps {
   contact: ContactData;
@@ -48,12 +47,21 @@ export function NotesList({ contact, onNoteAdded }: NotesListProps) {
       onNoteAdded();
     } catch (error) {
       console.error('Failed to add note:', error);
-      const message = error instanceof Error ? error.message : 'Gagal menambahkan catatan';
       
-      if (message.includes('NOT_AUTHENTICATED') || message.includes('401')) {
-        setError('SESSION_EXPIRED');
+      if (error instanceof Error) {
+        const message = error.message;
+        
+        if (message.includes('NOT_AUTHENTICATED') || message.includes('401') || message.includes('Sesi habis')) {
+          setError('SESSION_EXPIRED');
+        } else if (message.includes('TIMEOUT') || message.includes('timeout')) {
+          setError('TIMEOUT: Server tidak merespons. Silakan coba lagi.');
+        } else if (message.includes('NETWORK') || message.includes('network')) {
+          setError('NETWORK_ERROR: Periksa koneksi internet Anda.');
+        } else {
+          setError(message);
+        }
       } else {
-        setError(message);
+        setError('Gagal menambahkan catatan. Silakan coba lagi.');
       }
     } finally {
       setIsSubmitting(false);

@@ -11,6 +11,9 @@ let initAttempts = 0;
 const MAX_INIT_ATTEMPTS = 10;
 const AUTH_KEY = 'pelangganpro_auth';
 
+// Connect to background script for reliable message passing
+let port: chrome.runtime.Port | null = null;
+
 /**
  * Initialize the extension
  */
@@ -57,14 +60,24 @@ function init(): void {
   chatObserver.start();
   console.log('[PelangganPro] Chat observer started');
 
-  // Listen for auth changes from popup/login
+  // Connect to background script for reliable communication
+  connectToBackground();
+
+  // Listen for auth refresh messages from background
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'AUTH_REFRESH') {
+      console.log('[PelangganPro] Auth refresh received, reloading sidebar...');
+      handleAuthRefresh();
+      sendResponse({ success: true });
+      return true;
+    }
+  });
+
+  // Also keep storage listener as fallback
   chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes[AUTH_KEY]) {
-      console.log('[PelangganPro] Auth changed, refreshing...');
-      // Refresh current view
-      if (currentPhone) {
-        handlePhoneChange(currentPhone);
-      }
+      console.log('[PelangganPro] Auth changed via storage, refreshing...');
+      handleAuthRefresh();
     }
   });
 
@@ -82,6 +95,66 @@ function init(): void {
 }
 
 /**
+ * Connect to background script via port for reliable communication
+ */
+function connectToBackground() {
+  try {
+    port = chrome.runtime.connect({ name: 'pelangganpro-sidebar' });
+    console.log('[PelangganPro] Connected to background script');
+    
+    port.onDisconnect.addListener(() => {
+      console.log('[PelangganPro] Port disconnected, reconnecting...');
+      port = null;
+      // Attempt to reconnect after a delay
+      setTimeout(connectToBackground, 1000);
+    });
+  } catch (error) {
+    console.error('[PelangganPro] Failed to connect to background:', error);
+  }
+}
+
+/**
+ * Handle auth refresh - reload current contact data
+ */
+function handleAuthRefresh(): void {
+  console.log('[PelangganPro] Handling auth refresh, current phone:', currentPhone);
+  
+  // Show refreshing indicator
+  if (sidebarContainer) {
+    render(
+      <div className="pp-sidebar">
+        <div className="pp-loading">
+          <div className="pp-spinner" />
+          <p style={{ marginTop: '12px', fontSize: '13px', color: '#6b7280' }}>
+            Memperbarui sesi...
+          </p>
+        </div>
+      </div>,
+      sidebarContainer
+    );
+  }
+  
+  // Refresh after a short delay to allow auth to propagate
+  setTimeout(() => {
+    if (currentPhone) {
+      handlePhoneChange(currentPhone);
+    } else {
+      // Re-render empty state
+      if (sidebarContainer) {
+        render(
+          <div className="pp-sidebar">
+            <div className="pp-empty">
+              <p>Buka chat individual untuk melihat data CRM</p>
+            </div>
+          </div>,
+          sidebarContainer
+        );
+      }
+    }
+  }, 500);
+}
+
+/**
  * Handle phone number change
  */
 function handlePhoneChange(phone: string | null): void {
@@ -96,7 +169,7 @@ function handlePhoneChange(phone: string | null): void {
 
   if (phone) {
     try {
-      render(<Sidebar phone={phone} />, sidebarContainer);
+      render(<Sidebar phone={phone} key={phone} />, sidebarContainer);
       console.log('[PelangganPro] Sidebar rendered with phone:', phone);
     } catch (error) {
       console.error('[PelangganPro] Failed to render sidebar:', error);
@@ -122,6 +195,10 @@ function cleanup(): void {
     chatObserver.stop();
     chatObserver = null;
   }
+  if (port) {
+    port.disconnect();
+    port = null;
+  }
   removeShadowHost();
   sidebarContainer = null;
 }
@@ -144,7 +221,8 @@ window.addEventListener('beforeunload', cleanup);
   getCurrentPhone: () => currentPhone,
   refresh: () => currentPhone && handlePhoneChange(currentPhone),
   getContainer: () => sidebarContainer,
-  reinit: init
+  reinit: init,
+  forceAuthRefresh: handleAuthRefresh
 };
 
 console.log('[PelangganPro] Content script loaded');

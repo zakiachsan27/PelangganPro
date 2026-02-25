@@ -24,6 +24,7 @@ export function Sidebar({ phone }: SidebarProps) {
   const [error, setError] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isVisible, setIsVisible] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Load visibility preference
   useEffect(() => {
@@ -71,10 +72,13 @@ export function Sidebar({ phone }: SidebarProps) {
       setLoadingState('error');
       
       if (err instanceof Error) {
-        if (err.message === 'NOT_AUTHENTICATED') {
+        const message = err.message;
+        if (message.includes('NOT_AUTHENTICATED') || message.includes('401') || message.includes('Sesi habis')) {
           setError('NOT_AUTHENTICATED');
           setIsAuthenticated(false);
-        } else if (err.message === 'NETWORK_ERROR') {
+        } else if (message.includes('TIMEOUT') || message.includes('timeout')) {
+          setError('TIMEOUT: Server tidak merespons dalam waktu 10 detik.');
+        } else if (message.includes('NETWORK') || message.includes('network')) {
           setError('NETWORK_ERROR');
         } else {
           setError('UNKNOWN');
@@ -90,7 +94,10 @@ export function Sidebar({ phone }: SidebarProps) {
   }, [loadContact]);
 
   const handleRefresh = () => {
-    loadContact();
+    setIsRefreshing(true);
+    loadContact().finally(() => {
+      setTimeout(() => setIsRefreshing(false), 500);
+    });
   };
 
   // Toggle button (always visible)
@@ -150,7 +157,9 @@ export function Sidebar({ phone }: SidebarProps) {
           <ErrorState 
             type={error === 'NOT_AUTHENTICATED' ? 'not_authenticated' : 
                   error === 'NOT_FOUND' ? 'not_found' :
-                  error === 'NETWORK_ERROR' ? 'network_error' : 'unknown'}
+                  error === 'NETWORK_ERROR' ? 'network_error' : 
+                  error === 'UNKNOWN' ? 'unknown' : 'unknown'}
+            message={error && error !== 'NOT_AUTHENTICATED' && error !== 'NOT_FOUND' && error !== 'NETWORK_ERROR' && error !== 'UNKNOWN' ? error : undefined}
             onRetry={handleRefresh}
           />
         </div>
@@ -175,6 +184,18 @@ export function Sidebar({ phone }: SidebarProps) {
     <>
       <ToggleButton />
       <div className="pp-sidebar">
+        {isRefreshing && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: '3px',
+            background: 'linear-gradient(90deg, #4f46e5, #7c3aed)',
+            animation: 'pp-pulse 1s infinite'
+          }} />
+        )}
+        
         <ContactCard contact={contact} />
         
         {contact.upcomingTask && (
