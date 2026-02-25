@@ -48,7 +48,22 @@ export function Sidebar({ phone }: SidebarProps) {
     setError(null);
 
     try {
-      const auth = await authStorage.getAuth();
+      // Try to get auth with retry
+      let auth = null;
+      let attempts = 0;
+      const maxAttempts = 3;
+      
+      while (!auth && attempts < maxAttempts) {
+        auth = await authStorage.getAuth();
+        if (!auth) {
+          attempts++;
+          if (attempts < maxAttempts) {
+            console.log(`[Sidebar] Auth retry ${attempts}/${maxAttempts}...`);
+            await new Promise(r => setTimeout(r, 300));
+          }
+        }
+      }
+      
       setIsAuthenticated(!!auth);
 
       if (!auth) {
