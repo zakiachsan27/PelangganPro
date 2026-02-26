@@ -3,17 +3,23 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Mail, Phone, Building2, MapPin, Calendar, Pencil, Plus, UserCheck, ListTodo, MessageSquare, Receipt, Users, Loader2 } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Building2, MapPin, Calendar, Pencil, Plus, Handshake, ListTodo, MessageSquare, Users, Loader2, Edit2, Check, X, Trash2, Trash, TicketCheck, UserPlus, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { TagBadge } from "@/components/tags/tag-badge";
 import { NoteForm } from "@/components/notes/note-form";
 import { ContactForm } from "@/components/contacts/contact-form";
-import { ContactChatHistory } from "@/components/contacts/contact-chat-history";
 import { TaskForm } from "@/components/tasks/task-form";
 import { DealForm } from "@/components/deals/deal-form";
 import {
@@ -24,7 +30,14 @@ import {
   formatPhone,
 } from "@/lib/format";
 import { toast } from "sonner";
-import type { Contact, Deal, Note, Activity, Task } from "@/types";
+import type { Contact, Deal, Note, Activity, Task, Ticket, Profile, PipelineStage } from "@/types";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ContactProfileProps {
   contact: Contact;
@@ -53,6 +66,178 @@ const priorityColors: Record<string, string> = {
   urgent: "bg-destructive/10 text-destructive",
 };
 
+// Note Item Component with Edit and Delete functionality
+interface NoteItemProps {
+  note: Note;
+  onUpdated: () => void;
+}
+
+function NoteItem({ note, onUpdated }: NoteItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState(note.content);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const author = note.author;
+
+  const handleSave = async () => {
+    if (!editContent.trim()) return;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: editContent.trim() }),
+      });
+      if (res.ok) {
+        toast.success("Catatan berhasil diperbarui");
+        setIsEditing(false);
+        onUpdated();
+      } else {
+        toast.error("Gagal memperbarui catatan");
+      }
+    } catch {
+      toast.error("Gagal memperbarui catatan");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/notes/${note.id}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        toast.success("Catatan berhasil dihapus");
+        setShowDeleteConfirm(false);
+        onUpdated();
+      } else {
+        toast.error("Gagal menghapus catatan");
+      }
+    } catch {
+      toast.error("Gagal menghapus catatan");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditContent(note.content);
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+        <textarea
+          className="w-full min-h-[100px] p-3 text-sm border rounded-md resize-y focus:outline-none focus:ring-2 focus:ring-primary/20"
+          value={editContent}
+          onChange={(e) => setEditContent(e.target.value)}
+          disabled={isSaving}
+          autoFocus
+        />
+        <div className="flex justify-end gap-2 mt-3">
+          <button
+            onClick={handleCancel}
+            disabled={isSaving}
+            className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground border rounded-md hover:bg-slate-100 transition-colors"
+          >
+            <X className="inline h-3 w-3 mr-1" />
+            Batal
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || !editContent.trim()}
+            className="px-3 py-1.5 text-xs font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+          >
+            <Check className="inline h-3 w-3 mr-1" />
+            {isSaving ? "Menyimpan..." : "Simpan"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-slate-50 rounded-lg p-4 border border-slate-100 hover:border-slate-200 transition-colors">
+      <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+        {note.content}
+      </p>
+      <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-200">
+        <p className="text-xs text-muted-foreground">
+          {author?.full_name || "Unknown"} &middot; {formatRelativeTime(note.created_at)}
+        </p>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsEditing(true)}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-primary hover:bg-white rounded-md transition-colors"
+          >
+            <Edit2 className="h-3 w-3" />
+            Edit
+          </button>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="flex items-center gap-1 px-2 py-1 text-xs text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+          >
+            <Trash2 className="h-3 w-3" />
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Confirmation Dialog */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4 p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+                <Trash2 className="h-5 w-5 text-destructive" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">Hapus Catatan</h3>
+                <p className="text-sm text-muted-foreground">
+                  Apakah Anda yakin ingin menghapus catatan ini?
+                </p>
+              </div>
+            </div>
+            
+            <div className="bg-muted rounded-md p-3 mb-4 max-h-24 overflow-hidden">
+              <p className="text-sm text-muted-foreground line-clamp-3">
+                {note.content}
+              </p>
+            </div>
+
+            <p className="text-sm text-muted-foreground mb-6">
+              Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+              >
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Menghapus..." : "Hapus"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContactProfile({ contact }: ContactProfileProps) {
   const router = useRouter();
   const [editOpen, setEditOpen] = useState(false);
@@ -69,12 +254,100 @@ export function ContactProfile({ contact }: ContactProfileProps) {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
   // WA conversations disabled - moved to extension
   // const [waConversations, setWaConversations] = useState<WaConversation[]>([]);
   const [relatedContacts, setRelatedContacts] = useState<Contact[]>([]);
   const [loadingRelated, setLoadingRelated] = useState(true);
+  
+  // Assign owner dialog state
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [users, setUsers] = useState<Profile[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [assigning, setAssigning] = useState(false);
+  const [currentOwnerId, setCurrentOwnerId] = useState<string | null>(contact.owner_id);
 
   const customFields = Object.entries(contact.custom_fields || {});
+
+  // State for pipeline stages and stage updates
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+  const [updatingStageId, setUpdatingStageId] = useState<string | null>(null);
+
+  // Fetch stages for the pipeline
+  useEffect(() => {
+    async function fetchStages() {
+      if (deals.length === 0) return;
+      
+      // Get pipeline_id from first deal
+      const pipelineId = deals[0]?.pipeline_id;
+      if (!pipelineId) return;
+
+      try {
+        const res = await fetch(`/api/pipelines/${pipelineId}/stages`);
+        if (res.ok) {
+          const json = await res.json();
+          setStages(json.data || []);
+        }
+      } catch {
+        // Silently handle error
+      }
+    }
+    fetchStages();
+  }, [deals]);
+
+  // Handle stage update for a deal
+  const handleStageUpdate = async (dealId: string, newStageId: string) => {
+    setUpdatingStageId(dealId);
+    try {
+      const res = await fetch(`/api/deals/${dealId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage_id: newStageId }),
+      });
+
+      if (res.ok) {
+        const updatedDeal = await res.json();
+        setDeals((prev) =>
+          prev.map((d) => (d.id === dealId ? { ...d, stage: updatedDeal.stage, stage_id: newStageId } : d))
+        );
+        toast.success("Stage berhasil diperbarui");
+      } else {
+        toast.error("Gagal memperbarui stage");
+      }
+    } catch {
+      toast.error("Gagal memperbarui stage");
+    } finally {
+      setUpdatingStageId(null);
+    }
+  };
+
+  // Fetch notes function (extracted for reuse)
+  const fetchNotes = async () => {
+    try {
+      const res = await fetch(`/api/notes?contact_id=${contact.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setNotes(json.data || []);
+      }
+    } catch {
+      // Silently handle error
+    }
+  };
+
+  // Auto-update contact status if they have deals but status is still "lead"
+  useEffect(() => {
+    if (deals.length > 0 && contact.status === "lead") {
+      // Update contact status to "customer" via API
+      fetch(`/api/contacts/${contact.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "customer" }),
+      }).then(() => {
+        // Refresh page to show updated status
+        router.refresh();
+      });
+    }
+  }, [deals.length, contact.status, contact.id, router]);
 
   // Fetch all related entities on mount
   useEffect(() => {
@@ -91,11 +364,7 @@ export function ContactProfile({ contact }: ContactProfileProps) {
         );
 
         // Fetch notes for this contact
-        fetches.push(
-          fetch(`/api/notes?contact_id=${contact.id}`)
-            .then((r) => r.ok ? r.json() : { data: [] })
-            .then((json) => setNotes(json.data || []))
-        );
+        fetches.push(fetchNotes());
 
         // Fetch activities for this contact
         fetches.push(
@@ -111,9 +380,15 @@ export function ContactProfile({ contact }: ContactProfileProps) {
             .then((json) => setTasks(json.data || []))
         );
 
-        // Fetch WA conversations — API doesn't support contact_id filter,
-        // so we pass empty array for now
-        setWaConversations([]);
+        // Fetch tickets for this contact
+        fetches.push(
+          fetch(`/api/tickets?contact_id=${contact.id}&limit=100`)
+            .then((r) => r.ok ? r.json() : { data: [] })
+            .then((json) => setTickets(json.data || []))
+        );
+
+        // Fetch WA conversations — disabled, moved to extension
+        // setWaConversations([]);
 
         // Fetch related contacts from same company
         if (contact.company_id) {
@@ -156,14 +431,23 @@ export function ContactProfile({ contact }: ContactProfileProps) {
           </p>
         </div>
         <div className="flex gap-2">
-          {contact.status === "lead" && (
+          {deals.length > 0 ? (
             <Button
               variant="outline"
-              className="text-success-foreground border-success/30 hover:bg-success/10"
-              onClick={() => toast.success("Contact berhasil dikonversi ke Customer")}
+              disabled
+              className="text-success border-success/30 bg-success/5"
             >
-              <UserCheck className="mr-2 h-4 w-4" />
-              Convert to Customer
+              <Check className="mr-2 h-4 w-4" />
+              Sudah Deal
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="text-primary border-primary/30 hover:bg-primary/10"
+              onClick={() => setDealFormOpen(true)}
+            >
+              <Handshake className="mr-2 h-4 w-4" />
+              Convert to Deal
             </Button>
           )}
           <Button variant="outline" onClick={() => setEditOpen(true)}>
@@ -173,9 +457,102 @@ export function ContactProfile({ contact }: ContactProfileProps) {
         </div>
       </div>
 
-      <ContactForm open={editOpen} onOpenChange={setEditOpen} contact={contact} />
+      <ContactForm open={editOpen} onOpenChange={setEditOpen} contact={contact} onSuccess={() => router.refresh()} />
       <TaskForm open={taskFormOpen} onOpenChange={setTaskFormOpen} defaultContactId={contact.id} />
       <DealForm open={dealFormOpen} onOpenChange={setDealFormOpen} defaultContactId={contact.id} />
+
+      {/* Assign To Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Assign Contact</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <p className="text-sm text-muted-foreground">
+              Pilih user untuk menangani contact ini:
+            </p>
+            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              {loadingUsers || users.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  {loadingUsers ? "Memuat data user..." : "Tidak ada user"}
+                </p>
+              ) : (
+                users.map((user) => (
+                  <button
+                    key={user.id}
+                    onClick={async () => {
+                      if (assigning) return;
+                      setAssigning(true);
+                      try {
+                        const res = await fetch(`/api/contacts/${contact.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ owner_id: user.id }),
+                        });
+                        if (!res.ok) throw new Error();
+                        toast.success(`Contact diassign ke ${user.full_name}`);
+                        setCurrentOwnerId(user.id);
+                        setAssignDialogOpen(false);
+                        router.refresh();
+                      } catch {
+                        toast.error("Gagal assign contact");
+                      } finally {
+                        setAssigning(false);
+                      }
+                    }}
+                    disabled={assigning || user.id === currentOwnerId}
+                    className={`w-full flex items-center gap-3 p-3 rounded-lg border text-left transition-colors ${
+                      user.id === currentOwnerId
+                        ? "bg-primary/5 border-primary"
+                        : "hover:bg-muted"
+                    }`}
+                  >
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="text-xs">
+                        {getInitials(user.full_name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="flex-1 font-medium">{user.full_name}</span>
+                    {user.id === currentOwnerId && (
+                      <span className="text-xs text-primary">(Saat ini)</span>
+                    )}
+                  </button>
+                ))
+              )}
+            </div>
+            {currentOwnerId && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={async () => {
+                  if (assigning) return;
+                  setAssigning(true);
+                  try {
+                    const res = await fetch(`/api/contacts/${contact.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ owner_id: null }),
+                    });
+                    if (!res.ok) throw new Error();
+                    toast.success("Assignment dihapus");
+                    setCurrentOwnerId(null);
+                    setAssignDialogOpen(false);
+                    router.refresh();
+                  } catch {
+                    toast.error("Gagal menghapus assignment");
+                  } finally {
+                    setAssigning(false);
+                  }
+                }}
+                disabled={assigning}
+              >
+                Hapus Assignment
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left: Profile Card */}
@@ -268,17 +645,32 @@ export function ContactProfile({ contact }: ContactProfileProps) {
                 </div>
               </div>
 
-              {owner && (
+              {/* Pipeline Stage Section */}
+              {deals.length > 0 && (
                 <>
                   <Separator className="my-4" />
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-muted-foreground">Owner:</p>
-                    <Avatar className="h-5 w-5">
-                      <AvatarFallback className="text-xs">
-                        {getInitials(owner.full_name)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm">{owner.full_name}</span>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground mb-2">Pipeline Stage</p>
+                    <div className="space-y-2">
+                      {deals.map((deal) => (
+                        <div key={deal.id} className="flex items-center justify-between text-sm">
+                          <Link href={`/deals/${deal.id}`} className="truncate flex-1 hover:underline">
+                            {deal.title}
+                          </Link>
+                          {deal.stage ? (
+                            <div className="flex items-center gap-1.5">
+                              <span
+                                className="h-2 w-2 rounded-full"
+                                style={{ backgroundColor: deal.stage.color }}
+                              />
+                              <span className="text-xs font-medium">{deal.stage.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </>
               )}
@@ -301,6 +693,54 @@ export function ContactProfile({ contact }: ContactProfileProps) {
                 </>
               )}
 
+              {/* Assign To Section */}
+              <Separator className="my-4" />
+              <div>
+                <p className="text-xs font-medium text-muted-foreground mb-2">Assign To</p>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    {owner ? (
+                      <>
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-xs">
+                            {getInitials(owner.full_name)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">{owner.full_name}</span>
+                      </>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Belum di-assign</span>
+                    )}
+                  </div>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={async () => {
+                      setAssignDialogOpen(true);
+                      
+                      // Fetch users if not loaded
+                      if (users.length === 0) {
+                        setLoadingUsers(true);
+                        const supabase = createSupabaseBrowserClient();
+                        const { data, error } = await supabase
+                          .from("profiles")
+                          .select("id, full_name, avatar_url")
+                          .eq("is_active", true)
+                          .order("full_name");
+                        
+                        if (!error && data) {
+                          setUsers(data as Profile[]);
+                        }
+                        setLoadingUsers(false);
+                      }
+                    }}
+                  >
+                    <UserPlus className="mr-1 h-3 w-3" />
+                    {owner ? "Ganti" : "Assign"}
+                  </Button>
+                </div>
+              </div>
+
               {/* Quick Actions */}
               <Separator className="my-4" />
               <div className="flex flex-wrap gap-2">
@@ -317,11 +757,8 @@ export function ContactProfile({ contact }: ContactProfileProps) {
                     size="sm"
                     variant="outline"
                     onClick={() => {
-                      if (waConversations.length > 0) {
-                        router.push(`/messaging?conv=${waConversations[0].id}`);
-                      } else {
-                        toast.info("Belum ada percakapan WhatsApp untuk kontak ini");
-                      }
+                      // WhatsApp conversations moved to extension
+                      toast.info("Gunakan extension CRM untuk melihat percakapan WhatsApp");
                     }}
                   >
                     <MessageSquare className="mr-1 h-3 w-3" />
@@ -374,7 +811,7 @@ export function ContactProfile({ contact }: ContactProfileProps) {
         {/* Right: Tabs */}
         <div className="lg:col-span-2">
           <Tabs defaultValue="deals">
-            <TabsList>
+            <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="deals">
                 Deals ({deals.length})
               </TabsTrigger>
@@ -384,16 +821,12 @@ export function ContactProfile({ contact }: ContactProfileProps) {
               <TabsTrigger value="notes">
                 Notes ({notes.length})
               </TabsTrigger>
+              <TabsTrigger value="tickets">
+                <TicketCheck className="mr-1 h-3 w-3" />
+                Tickets ({tickets.length})
+              </TabsTrigger>
               <TabsTrigger value="activity">
                 Activity ({activities.length})
-              </TabsTrigger>
-              <TabsTrigger value="chat">
-                <MessageSquare className="mr-1 h-3 w-3" />
-                Chat
-              </TabsTrigger>
-              <TabsTrigger value="transactions">
-                <Receipt className="mr-1 h-3 w-3" />
-                Transaksi
               </TabsTrigger>
             </TabsList>
 
@@ -407,29 +840,72 @@ export function ContactProfile({ contact }: ContactProfileProps) {
                   ) : deals.length > 0 ? (
                     <div className="space-y-3">
                       {deals.map((deal) => (
-                        <Link
+                        <div
                           key={deal.id}
-                          href={`/deals/${deal.id}`}
                           className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50"
                         >
-                          <div>
-                            <p className="font-medium text-sm">{deal.title}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {deal.status === "won"
-                                ? "Menang"
-                                : deal.status === "lost"
-                                ? "Kalah"
-                                : "Open"}{" "}
-                              &middot;{" "}
-                              {deal.expected_close_date
-                                ? formatDate(deal.expected_close_date)
-                                : "No date"}
-                            </p>
+                          <div className="flex-1 min-w-0">
+                            <Link href={`/deals/${deal.id}`}>
+                              <p className="font-medium text-sm hover:underline">{deal.title}</p>
+                            </Link>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {/* Stage Selector */}
+                              <Select
+                                value={deal.stage_id}
+                                onValueChange={(value) => handleStageUpdate(deal.id, value)}
+                                disabled={updatingStageId === deal.id}
+                              >
+                                <SelectTrigger className="h-6 w-auto min-w-[120px] text-xs border-0 bg-transparent p-0 hover:bg-muted/50 rounded px-2">
+                                  <div className="flex items-center gap-1.5">
+                                    {deal.stage && (
+                                      <span
+                                        className="h-2 w-2 rounded-full"
+                                        style={{ backgroundColor: deal.stage.color }}
+                                      />
+                                    )}
+                                    <SelectValue placeholder="Pilih stage">
+                                      {deal.stage?.name || "Pilih stage"}
+                                    </SelectValue>
+                                  </div>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {stages.map((stage) => (
+                                    <SelectItem key={stage.id} value={stage.id} className="text-xs">
+                                      <div className="flex items-center gap-2">
+                                        <span
+                                          className="h-2 w-2 rounded-full"
+                                          style={{ backgroundColor: stage.color }}
+                                        />
+                                        <span>{stage.name}</span>
+                                        {stage.is_won && (
+                                          <Badge variant="outline" className="ml-1 text-[10px] bg-success/10 text-success">Won</Badge>
+                                        )}
+                                        {stage.is_lost && (
+                                          <Badge variant="outline" className="ml-1 text-[10px] bg-destructive/10 text-destructive">Lost</Badge>
+                                        )}
+                                      </div>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              
+                              <span className="text-xs text-muted-foreground">
+                                &middot;{" "}
+                                {deal.expected_close_date
+                                  ? formatDate(deal.expected_close_date)
+                                  : "No date"}
+                              </span>
+                            </div>
                           </div>
-                          <span className="font-semibold text-sm">
-                            {formatCurrency(deal.value)}
-                          </span>
-                        </Link>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold text-sm">
+                              {formatCurrency(deal.value)}
+                            </span>
+                            {updatingStageId === deal.id && (
+                              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : (
@@ -491,29 +967,87 @@ export function ContactProfile({ contact }: ContactProfileProps) {
             <TabsContent value="notes" className="mt-4">
               <Card>
                 <CardContent className="pt-6 space-y-4">
-                  <NoteForm onSubmit={(content) => console.log("New note:", content)} />
+                  <NoteForm 
+                    contactId={contact.id} 
+                    onSubmit={() => fetchNotes()} 
+                  />
                   {loadingRelated ? (
                     <div className="flex justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                     </div>
                   ) : notes.length > 0 ? (
-                    <div className="space-y-4">
-                      {notes.map((note) => {
-                        const author = note.author;
-                        return (
-                          <div key={note.id} className="border-l-2 pl-4">
-                            <p className="text-sm">{note.content}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              {author?.full_name} &middot;{" "}
-                              {formatRelativeTime(note.created_at)}
-                            </p>
-                          </div>
-                        );
-                      })}
+                    <div className="space-y-3">
+                      {notes.map((note) => (
+                        <NoteItem 
+                          key={note.id} 
+                          note={note} 
+                          onUpdated={() => fetchNotes()}
+                        />
+                      ))}
                     </div>
                   ) : (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       Belum ada catatan
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="tickets" className="mt-4">
+              <Card>
+                <CardContent className="pt-6">
+                  {loadingRelated ? (
+                    <div className="flex justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : tickets.length > 0 ? (
+                    <div className="space-y-3">
+                      {tickets.map((ticket) => (
+                        <Link
+                          key={ticket.id}
+                          href={`/tickets/${ticket.id}`}
+                          className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50"
+                        >
+                          <div className="flex-1">
+                            <p className="font-medium text-sm">{ticket.title}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">
+                              {ticket.description}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
+                                ticket.status === "open" ? "bg-blue-500/10 text-blue-600" :
+                                ticket.status === "in_progress" ? "bg-primary/10 text-primary" :
+                                ticket.status === "waiting" ? "bg-yellow-500/10 text-yellow-600" :
+                                ticket.status === "resolved" ? "bg-success/15 text-success-foreground" :
+                                "bg-secondary text-secondary-foreground"
+                              }`}>
+                                {ticket.status.replace("_", " ")}
+                              </span>
+                              <Badge variant={
+                                ticket.priority === "urgent" ? "destructive" :
+                                ticket.priority === "high" ? "default" :
+                                ticket.priority === "medium" ? "secondary" : "outline"
+                              } className="text-xs">
+                                {ticket.priority}
+                              </Badge>
+                            </div>
+                          </div>
+                          {ticket.assignee && (
+                            <div className="flex items-center gap-2 ml-4">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-xs">
+                                  {getInitials(ticket.assignee.full_name)}
+                                </AvatarFallback>
+                              </Avatar>
+                            </div>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      Belum ada ticket untuk kontak ini
                     </p>
                   )}
                 </CardContent>
@@ -559,27 +1093,7 @@ export function ContactProfile({ contact }: ContactProfileProps) {
               </Card>
             </TabsContent>
 
-            <TabsContent value="chat" className="mt-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <ContactChatHistory />
-                </CardContent>
-              </Card>
-            </TabsContent>
 
-            <TabsContent value="transactions" className="mt-4">
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col items-center py-12 text-center">
-                    <Receipt className="h-12 w-12 text-muted-foreground/30 mb-3" />
-                    <p className="font-medium text-sm">Riwayat Transaksi</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Data transaksi akan muncul di sini setelah integrasi payment aktif
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
           </Tabs>
         </div>
       </div>

@@ -44,14 +44,23 @@ function isOverdue(dueDate: string | null, status: TaskStatus) {
 
 export const tasksColumns: ColumnDef<Task>[] = [
   {
-    id: "check",
+    id: "select",
+    header: ({ table }) => (
+      <Checkbox
+        checked={table.getIsAllPageRowsSelected()}
+        onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+        aria-label="Select all"
+      />
+    ),
     cell: ({ row }) => (
       <Checkbox
-        checked={row.original.status === "done"}
-        className="border-border"
+        checked={row.getIsSelected()}
+        onCheckedChange={(value) => row.toggleSelected(!!value)}
+        aria-label="Select row"
       />
     ),
     size: 40,
+    enableSorting: false,
   },
   {
     accessorKey: "title",

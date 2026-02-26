@@ -5,7 +5,8 @@ const CONTACT_SELECT = `
   *,
   company:companies(id, name),
   owner:profiles!contacts_owner_id_fkey(id, full_name, avatar_url),
-  tags:contact_tags(tag:tags(id, name, color))
+  tags:contact_tags(tag:tags(id, name, color)),
+  deals:deals(id, value, status, stage:pipeline_stages(name))
 `;
 
 // GET /api/contacts — List contacts with filters, search, pagination
@@ -47,8 +48,38 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Debug: log deals for Pak Juli and Miss Bella
+  const pakJuli = data?.find((c: any) => c.first_name === 'Pak' && c.last_name === 'Juli');
+  if (pakJuli) {
+    console.log('[Contacts API] Pak Juli deals:', JSON.stringify(pakJuli.deals, null, 2));
+  }
+  const missBella = data?.find((c: any) => c.first_name === 'Miss' && c.last_name === 'Bella');
+  if (missBella) {
+    console.log('[Contacts API] Miss Bella deals:', JSON.stringify(missBella.deals, null, 2));
+  }
+
+  // Calculate lifetime_value and pipeline status for each contact
+  const contactsWithData = (data || []).map((contact: any) => {
+    const deals = contact.deals || [];
+    
+    // Calculate lifetime_value from won deals
+    const lifetime_value = deals
+      .filter((d: any) => d.status === 'won')
+      .reduce((sum: number, d: any) => sum + (Number(d.value) || 0), 0);
+    
+    // Get current pipeline stage (from open deal or last deal)
+    const openDeal = deals.find((d: any) => d.status === 'open');
+    const pipeline_status = openDeal?.stage?.name || (deals.length > 0 ? 'No Active Deal' : '-');
+    
+    return {
+      ...contact,
+      lifetime_value,
+      pipeline_status,
+    };
+  });
+
   return NextResponse.json({
-    data,
+    data: contactsWithData,
     total: count,
     page,
     limit,
@@ -106,6 +137,60 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error("[Contacts API] Insert error:", error);
       return NextResponse.json({ error: error.message, details: error }, { status: 500 });
+    }
+
+    // Auto-create deal in first stage of default pipeline for all contacts
+    try {
+      // 1. Get default pipeline for this org
+      const { data: defaultPipeline } = await supabase
+        .from("pipelines")
+        .select("id")
+        .eq("org_id", profile.org_id)
+        .eq("is_default", true)
+        .single();
+
+      if (defaultPipeline) {
+        // 2. Get first stage of this pipeline
+        const { data: firstStage } = await supabase
+          .from("pipeline_stages")
+          .select("id")
+          .eq("pipeline_id", defaultPipeline.id)
+          .order("position", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (firstStage) {
+          // 3. Create deal with contact info as title
+          const fullName = `${body.first_name} ${body.last_name || ""}`.trim();
+          const dealTitle = `Deal: ${fullName}`;
+          
+          const { error: dealError } = await supabase
+            .from("deals")
+            .insert({
+              org_id: profile.org_id,
+              created_by: user.id,
+              pipeline_id: defaultPipeline.id,
+              stage_id: firstStage.id,
+              contact_id: data.id,
+              company_id: body.company_id || null,
+              title: dealTitle,
+              value: 0,
+              currency: "IDR",
+              status: "open",
+              position: 0,
+              source: body.source || "manual",
+            });
+
+          if (dealError) {
+            console.error("[Contacts API] Auto-create deal error:", dealError);
+          } else {
+            console.log("[Contacts API] Auto-created deal for contact:", data.id);
+          }
+        }
+      }
+    } catch (dealErr) {
+      // Don't fail contact creation if deal auto-creation fails
+      console.error("[Contacts API] Error in auto-deal creation:", dealErr);
     }
 
     return NextResponse.json(data, { status: 201 });

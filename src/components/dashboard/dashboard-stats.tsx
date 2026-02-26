@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { Users, Handshake, Trophy, CheckSquare, Loader2 } from "lucide-react";
+import { Users, Handshake, Trophy, CheckSquare, Loader2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { toast } from "sonner";
@@ -79,27 +80,75 @@ function getStatValues(stats: DashboardStatsType | null) {
 export function DashboardStats() {
   const [stats, setStats] = useState<DashboardStatsType | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      // Add cache-busting timestamp
+      const res = await fetch(`/api/dashboard/stats?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      });
+      if (!res.ok) throw new Error("Gagal memuat statistik");
+      const json = await res.json();
+      setStats(json.data ?? json);
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Gagal memuat statistik");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchStats() {
-      try {
-        const res = await fetch("/api/dashboard/stats");
-        if (!res.ok) throw new Error("Gagal memuat statistik");
-        const json = await res.json();
-        setStats(json.data ?? json);
-      } catch (err: unknown) {
-        toast.error(err instanceof Error ? err.message : "Gagal memuat statistik");
-      } finally {
-        setLoading(false);
-      }
-    }
+    // Prevent re-fetch on tab switch (React re-mount)
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    
     fetchStats();
+    
+    // Auto-refresh every 30 seconds only when tab is visible
+    let interval: NodeJS.Timeout;
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        interval = setInterval(fetchStats, 30000);
+      } else {
+        clearInterval(interval);
+      }
+    };
+    
+    // Start interval if visible
+    if (document.visibilityState === 'visible') {
+      interval = setInterval(fetchStats, 30000);
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   const statValues = getStatValues(stats);
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={fetchStats}
+          disabled={loading}
+          className="h-8 px-2 text-muted-foreground"
+        >
+          <RefreshCw className={`h-4 w-4 mr-1 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {cardConfigs.map((config) => {
         const sv = statValues[config.key as keyof typeof statValues];
         return (
@@ -131,6 +180,7 @@ export function DashboardStats() {
           </Link>
         );
       })}
+      </div>
     </div>
   );
 }

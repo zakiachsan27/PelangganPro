@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { ArrowRight, Loader2, FolderKanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -11,7 +11,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { TagBadge } from "@/components/tags/tag-badge";
 import { LeadsFilter, type LeadsFilterValues } from "@/components/leads/leads-filter";
 import { getInitials, formatRelativeTime } from "@/lib/format";
-import type { Contact } from "@/types";
+import type { Contact, Deal, PipelineStage } from "@/types";
 
 const sourceLabels: Record<string, string> = {
   whatsapp: "WhatsApp",
@@ -21,6 +21,62 @@ const sourceLabels: Record<string, string> = {
   tokopedia: "Tokopedia",
   shopee: "Shopee",
 };
+
+// Component untuk menampilkan stage badge untuk setiap lead
+function LeadStageBadge({ contactId }: { contactId: string }) {
+  const [deal, setDeal] = useState<Deal | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchDeal() {
+      try {
+        const res = await fetch(`/api/deals?contact_id=${contactId}&limit=1`);
+        if (res.ok) {
+          const json = await res.json();
+          const deals = json.data || [];
+          if (deals.length > 0) {
+            setDeal(deals[0]);
+          }
+        }
+      } catch {
+        // Silently handle error
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDeal();
+  }, [contactId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        <span>Loading...</span>
+      </div>
+    );
+  }
+
+  if (!deal || !deal.stage) {
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <FolderKanban className="h-3 w-3" />
+        <span>No pipeline</span>
+      </div>
+    );
+  }
+
+  return (
+    <Link href={`/deals/${deal.id}`} className="inline-flex items-center gap-1.5 text-xs hover:underline">
+      <span
+        className="h-2 w-2 rounded-full"
+        style={{ backgroundColor: deal.stage.color }}
+      />
+      <span className="font-medium" style={{ color: deal.stage.color }}>
+        {deal.stage.name}
+      </span>
+    </Link>
+  );
+}
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Contact[]>([]);
@@ -53,6 +109,8 @@ export default function LeadsPage() {
   useEffect(() => {
     fetchLeads();
   }, [fetchLeads]);
+
+
 
   return (
     <div className="space-y-6">
@@ -102,6 +160,11 @@ export default function LeadsPage() {
                     )}
                   </div>
 
+                  {/* Pipeline Stage Badge */}
+                  <div className="mt-3">
+                    <LeadStageBadge contactId={lead.id} />
+                  </div>
+
                   {lead.tags && lead.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-3">
                       {lead.tags.map((tag) => (
@@ -119,12 +182,14 @@ export default function LeadsPage() {
                         </span>
                       )}
                     </div>
-                    <Link href={`/deals/new?contact_id=${lead.id}`}>
-                      <Button variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        Convert to Deal
-                        <ArrowRight className="ml-1 h-3 w-3" />
-                      </Button>
-                    </Link>
+                    {lead.status === "lead" && (
+                      <Link href={`/deals/new?contact_id=${lead.id}`}>
+                        <Button variant="outline" size="sm" className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          Convert to Deal
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>

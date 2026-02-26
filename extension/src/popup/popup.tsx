@@ -24,6 +24,8 @@ function Popup() {
     }
   };
 
+
+
   const handleLogin = async (e: Event) => {
     e.preventDefault();
     setLoading(true);
@@ -61,6 +63,9 @@ function Popup() {
 
       setIsLoggedIn(true);
       setUserInfo({ orgId: result.orgId });
+
+
+
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -84,9 +89,26 @@ function Popup() {
     setPassword('');
   };
 
-  const openCRM = () => {
-    chrome.tabs.create({ url: 'http://localhost:3000/dashboard' });
+  const handleRefresh = async () => {
+    try {
+      // Find and reload WhatsApp Web tabs
+      const tabs = await chrome.tabs.query({ url: '*://web.whatsapp.com/*' });
+      if (tabs.length === 0) {
+        alert('WhatsApp Web belum terbuka. Silakan buka web.whatsapp.com terlebih dahulu.');
+        return;
+      }
+      tabs.forEach((tab) => {
+        if (tab.id) {
+          chrome.tabs.reload(tab.id);
+          console.log('[Popup] Reloaded tab:', tab.id);
+        }
+      });
+    } catch (err) {
+      console.error('[Popup] Failed to refresh:', err);
+    }
   };
+
+
 
   if (isLoggedIn) {
     return (
@@ -122,8 +144,21 @@ function Popup() {
           <p style={{ margin: 0, color: '#6b7280' }}>Siap digunakan di WhatsApp Web</p>
         </div>
 
+        <p style={{
+          fontSize: '11px',
+          color: '#4f46e5',
+          textAlign: 'center',
+          marginBottom: '16px',
+          padding: '10px',
+          background: '#eef2ff',
+          borderRadius: '6px',
+          border: '1px solid #c7d2fe'
+        }}>
+          Setelah login, klik tombol Refresh di bawah untuk reload WhatsApp Web
+        </p>
+
         <button 
-          onClick={openCRM}
+          onClick={handleRefresh}
           style={{
             width: '100%',
             padding: '10px',
@@ -136,7 +171,7 @@ function Popup() {
             marginBottom: '8px'
           }}
         >
-          Buka Dashboard CRM
+          🔄 Refresh WhatsApp Web
         </button>
 
         <button 
@@ -172,7 +207,7 @@ function Popup() {
           margin: '0 auto 12px',
           color: 'white',
           fontSize: '24px',
-            fontWeight: 'bold'
+          fontWeight: 'bold'
         }}>
           P
         </div>

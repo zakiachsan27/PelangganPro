@@ -87,13 +87,16 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Unknown error" }));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
       toast.success(isEdit ? "Contact berhasil diupdate" : "Contact berhasil ditambahkan");
       onOpenChange(false);
       form.reset();
       onSuccess?.();
-    } catch {
-      toast.error("Gagal menyimpan contact");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan contact");
     }
   }
 

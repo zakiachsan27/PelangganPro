@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -66,17 +66,7 @@ export function DataTable<TData, TValue>({
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: (updater) => {
-      const newSelection = typeof updater === "function" ? updater(rowSelection) : updater;
-      setRowSelection(newSelection);
-      if (onRowSelectionChange) {
-        const selectedRows = Object.keys(newSelection)
-          .filter((key) => newSelection[key])
-          .map((key) => data[Number(key)])
-          .filter(Boolean);
-        onRowSelectionChange(selectedRows);
-      }
-    },
+    onRowSelectionChange: setRowSelection,
     enableRowSelection,
     state: {
       sorting,
@@ -92,6 +82,14 @@ export function DataTable<TData, TValue>({
   });
 
   const selectedCount = table.getFilteredSelectedRowModel().rows.length;
+
+  // Notify parent component when selection changes
+  useEffect(() => {
+    if (onRowSelectionChange) {
+      const selectedRows = table.getFilteredSelectedRowModel().rows.map((row) => row.original);
+      onRowSelectionChange(selectedRows);
+    }
+  }, [rowSelection, onRowSelectionChange, table]);
   const totalFiltered = table.getFilteredRowModel().rows.length;
 
   return (

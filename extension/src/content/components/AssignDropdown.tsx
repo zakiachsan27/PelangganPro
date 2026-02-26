@@ -1,5 +1,4 @@
 import { h } from 'preact';
-import { useState, useEffect } from 'preact/hooks';
 import type { ContactData } from '../../types';
 
 interface AssignDropdownProps {
@@ -7,31 +6,80 @@ interface AssignDropdownProps {
   onAssigned: () => void;
 }
 
-export function AssignDropdown({ contact }: AssignDropdownProps) {
-  const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
-  };
+const styles = {
+  section: {
+    padding: '16px 20px',
+    borderBottom: '1px solid #f3f4f6',
+  },
+  title: {
+    fontSize: '11px',
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    color: '#6b7280',
+    marginBottom: '8px',
+  },
+  content: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  avatar: {
+    width: '28px',
+    height: '28px',
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+    color: '#ffffff',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 600,
+  },
+  name: {
+    fontSize: '13px',
+    color: '#374151',
+  },
+  emptyText: {
+    fontSize: '13px',
+    color: '#9ca3af',
+  },
+  note: {
+    fontSize: '11px',
+    color: '#9ca3af',
+    marginTop: '8px',
+    fontStyle: 'italic' as const,
+  },
+};
 
-  // Sementara hanya display, belum bisa assign
-  // Karena butuh fetch agents dari API (UUID required)
+function getInitials(name: string): string {
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+export function AssignDropdown({ contact }: AssignDropdownProps) {
   return (
-    <div className="pp-section">
-      <h3 className="pp-section-title">Assign ke</h3>
-      
+    <div style={styles.section}>
+      <div style={styles.title}>Assign ke</div>
       {contact.assignedTo ? (
-        <div className="pp-flex pp-items-center pp-gap-2 pp-p-2 pp-bg-gray-50 pp-rounded">
-          <div className="pp-avatar" style={{ width: '28px', height: '28px', fontSize: '12px' }}>
+        <div style={styles.content}>
+          <div style={styles.avatar}>
             {getInitials(contact.assignedTo.name)}
           </div>
-          <span className="pp-text-sm pp-font-medium">{contact.assignedTo.name}</span>
+          <span style={styles.name}>{contact.assignedTo.name}</span>
         </div>
       ) : (
-        <p className="pp-text-sm pp-text-gray-500">Belum di-assign</p>
+        <div>
+          <div style={styles.emptyText}>Belum di-assign</div>
+          <div style={styles.note}>
+            * Assign via dashboard CRM
+          </div>
+        </div>
       )}
-      
-      <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>
-        * Assign via dashboard CRM
-      </p>
     </div>
   );
 }

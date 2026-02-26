@@ -84,20 +84,8 @@ export default function DealDetailPage({
     fetchActivities();
   }, [fetchDeal, fetchNotes, fetchActivities]);
 
-  async function handleAddNote(content: string) {
-    try {
-      const res = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, deal_id: id }),
-      });
-      if (!res.ok) throw new Error("Gagal menambah catatan");
-      const newNote = await res.json();
-      setNotes((prev) => [newNote, ...prev]);
-    } catch (err) {
-      console.error("Failed to add note:", err);
-      toast.error("Gagal menambah catatan");
-    }
+  async function handleAddNote() {
+    await fetchNotes();
   }
 
   if (loading) {
@@ -303,7 +291,7 @@ export default function DealDetailPage({
               <CardTitle className="text-base">Notes ({notes.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <NoteForm onSubmit={handleAddNote} />
+              <NoteForm dealId={id} onSubmit={handleAddNote} />
               {notes.length > 0 ? (
                 <div className="space-y-4">
                   {notes.map((note) => (

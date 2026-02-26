@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 
 /**
@@ -9,6 +9,7 @@ import { createSupabaseBrowserClient } from "@/lib/supabase/client";
  */
 export function ExtensionAuthBridge() {
   const [mounted, setMounted] = useState(false);
+  const hasSent = useRef(false);
 
   useEffect(() => {
     setMounted(true);
@@ -21,41 +22,35 @@ export function ExtensionAuthBridge() {
       try {
         console.log("[AuthBridge] Checking session...");
         const supabase = createSupabaseBrowserClient();
-        const { data: { session } } = await supabase.auth.getSession();
+        
+        // Get session with short timeout
+        const sessionResult = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 5000))
+        ]) as any;
+        
+        const session = sessionResult?.data?.session;
         
         if (!session) {
           console.log("[AuthBridge] No session found");
           return;
         }
 
-        console.log("[AuthBridge] Session found, getting profile...");
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("org_id")
-          .eq("id", session.user.id)
-          .single();
-
-        if (!profile) {
-          console.log("[AuthBridge] No profile found");
-          return;
-        }
-
+        console.log("[AuthBridge] Session found");
+        
+        // Don't block on profile query - use session data directly
         const authData = {
           type: "PELANGGANPRO_AUTH",
           token: session.access_token,
           refreshToken: session.refresh_token,
-          orgId: profile.org_id,
+          orgId: session.user.user_metadata?.org_id || null,
           userId: session.user.id,
           expiresAt: session.expires_at
             ? new Date(session.expires_at * 1000).getTime()
             : Date.now() + 3600 * 1000,
         };
 
-        console.log("[AuthBridge] Sending auth to extension:", {
-          hasToken: !!authData.token,
-          orgId: authData.orgId,
-          userId: authData.userId,
-        });
+        console.log("[AuthBridge] Sending auth to extension");
 
         // Send to extension
         window.postMessage(authData, window.location.origin);
@@ -70,14 +65,19 @@ export function ExtensionAuthBridge() {
       }
     };
 
-    // Send immediately
-    sendAuthToExtension();
+    // Only send once per mount
+    if (!hasSent.current) {
+      hasSent.current = true;
+      sendAuthToExtension();
+    }
 
     // Also send on message from extension
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin) return;
-      if (event.data?.type === "PELANGGANPRO_REFRESH_AUTH") {
+      if (event.data?.type === "PELANGGANPRO_REFRESH_AUTH" || 
+          event.data?.type === "PELANGGANPRO_REFRESH_AUTH_REQUEST") {
         console.log("[AuthBridge] Refresh requested by extension");
+        hasSent.current = false; // Reset to allow resend
         sendAuthToExtension();
       }
     };

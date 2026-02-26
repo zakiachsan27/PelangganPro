@@ -63,8 +63,8 @@ export function CrmQuickActions({ contactId }: CrmQuickActionsProps) {
         {noteOpen && (
           <div className="mt-3">
             <NoteForm
-              onSubmit={(content) => {
-                console.log("CRM panel note:", content);
+              contactId={contactId || undefined}
+              onSubmit={() => {
                 toast.success("Catatan berhasil ditambahkan");
                 setNoteOpen(false);
               }}

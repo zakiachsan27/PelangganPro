@@ -2,7 +2,7 @@
 
 import { Smartphone, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ProviderBadge } from "@/components/messaging/provider-badge";
+import { Badge } from "@/components/ui/badge";
 import { SessionStatusBadge } from "./session-status-badge";
 import { formatRelativeTime } from "@/lib/format";
 import type { WaSession } from "@/types";
@@ -39,7 +39,7 @@ export function WaSessionList({ sessions, loading }: WaSessionListProps) {
                       <span className="text-xs text-muted-foreground">
                         {session.phone_number || "No number"}
                       </span>
-                      <ProviderBadge provider={session.provider} />
+                      <Badge variant="outline" className="text-xs capitalize">{session.provider}</Badge>
                     </div>
                   </div>
                 </div>

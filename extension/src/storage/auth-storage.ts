@@ -2,6 +2,41 @@ import type { AuthData } from '../types';
 
 const AUTH_KEY = 'pelangganpro_auth';
 
+// Request auth refresh from CRM web app
+async function requestAuthRefresh(): Promise<AuthData | null> {
+  return new Promise((resolve) => {
+    console.log('[AuthStorage] Requesting auth refresh from CRM...');
+    
+    // Send message to CRM web app via content script
+    window.postMessage({ type: 'PELANGGANPRO_REFRESH_AUTH_REQUEST' }, window.location.origin);
+    
+    // Listen for response
+    const handleResponse = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      if (event.data?.type === 'PELANGGANPRO_AUTH') {
+        window.removeEventListener('message', handleResponse);
+        clearTimeout(timeout);
+        resolve({
+          token: event.data.token,
+          refreshToken: event.data.refreshToken,
+          orgId: event.data.orgId,
+          userId: event.data.userId,
+          expiresAt: event.data.expiresAt
+        });
+      }
+    };
+    
+    window.addEventListener('message', handleResponse);
+    
+    // Timeout after 5 seconds
+    const timeout = setTimeout(() => {
+      window.removeEventListener('message', handleResponse);
+      console.log('[AuthStorage] Auth refresh request timeout');
+      resolve(null);
+    }, 5000);
+  });
+}
+
 export const authStorage = {
   async getAuth(): Promise<AuthData | null> {
     try {
@@ -18,9 +53,19 @@ export const authStorage = {
           isExpired: Date.now() > auth.expiresAt
         });
         
-        // Check expiration - buffer 30 menit (lebih longgar)
-        if (Date.now() > (auth.expiresAt - 30 * 60 * 1000)) {
-          console.log('[AuthStorage] Token expired or about to expire');
+        // Check expiration - buffer 5 menit
+        if (Date.now() > (auth.expiresAt - 5 * 60 * 1000)) {
+          console.log('[AuthStorage] Token expired or about to expire, trying refresh...');
+          
+          // Try to refresh auth from CRM web app
+          const refreshedAuth = await requestAuthRefresh();
+          if (refreshedAuth) {
+            console.log('[AuthStorage] Auth refreshed successfully');
+            await this.setAuth(refreshedAuth);
+            return refreshedAuth;
+          }
+          
+          console.log('[AuthStorage] Refresh failed, returning null');
           return null;
         }
         

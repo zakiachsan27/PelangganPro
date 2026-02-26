@@ -1,25 +1,44 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrencyCompact } from "@/lib/format";
-import { TrendingUp } from "lucide-react";
+import { TrendingUp, Loader2 } from "lucide-react";
 
-function getRecentMonths(): { month: string; revenue: number }[] {
-  const bulan = [
-    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-    "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-  ];
-  const now = new Date();
-  const result: { month: string; revenue: number }[] = [];
-  for (let i = 5; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    result.push({ month: bulan[d.getMonth()], revenue: 0 });
-  }
-  return result;
+interface RevenueData {
+  month: string;
+  year: number;
+  revenue: number;
 }
 
 export function RevenueChart() {
-  const data = getRecentMonths();
+  const [data, setData] = useState<RevenueData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
+
+  const fetchRevenue = async () => {
+    try {
+      const res = await fetch(`/api/dashboard/revenue?_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error("Gagal memuat data revenue");
+      const json = await res.json();
+      setData(json.data || []);
+    } catch (err) {
+      console.error("Error fetching revenue:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Prevent re-fetch on tab switch (React re-mount)
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    
+    fetchRevenue();
+  }, []);
+
   const totalRevenue = data.reduce((s, d) => s + d.revenue, 0);
   const hasData = totalRevenue > 0;
 
@@ -35,13 +54,17 @@ export function RevenueChart() {
       </CardHeader>
       <CardContent>
         <div className="bg-muted/30 rounded-2xl p-4">
-          {hasData ? (
+          {loading ? (
+            <div className="flex items-center justify-center h-[180px]">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : hasData ? (
             <div className="flex items-end gap-3">
               {data.map((d) => {
                 const maxRevenue = Math.max(...data.map((x) => x.revenue));
                 const heightPercent = maxRevenue > 0 ? (d.revenue / maxRevenue) * 100 : 0;
                 return (
-                  <div key={d.month} className="flex-1 flex flex-col items-center gap-1">
+                  <div key={`${d.month}-${d.year}`} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-xs text-muted-foreground">
                       {formatCurrencyCompact(d.revenue)}
                     </span>

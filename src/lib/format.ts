@@ -5,7 +5,10 @@
 /**
  * Format number as IDR currency (e.g., "Rp 25.000.000")
  */
-export function formatCurrency(value: number): string {
+export function formatCurrency(value: number | undefined | null): string {
+  if (value === undefined || value === null) {
+    return "Rp 0";
+  }
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",

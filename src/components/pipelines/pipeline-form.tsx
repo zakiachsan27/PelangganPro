@@ -1,92 +1,98 @@
 "use client";
 
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import type { Pipeline } from "@/types";
-
-const pipelineSchema = z.object({
-  name: z.string().min(1, "Nama pipeline wajib diisi"),
-  is_default: z.boolean(),
-});
-
-type PipelineFormValues = z.infer<typeof pipelineSchema>;
 
 interface PipelineFormProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   pipeline?: Pipeline | null;
+  onSuccess?: () => void;
 }
 
-export function PipelineForm({ open, onOpenChange, pipeline }: PipelineFormProps) {
+export function PipelineForm({ open, onOpenChange, pipeline, onSuccess }: PipelineFormProps) {
   const isEdit = !!pipeline;
+  const [loading, setLoading] = useState(false);
 
-  const form = useForm<PipelineFormValues>({
-    resolver: zodResolver(pipelineSchema),
-    defaultValues: {
-      name: pipeline?.name || "",
-      is_default: pipeline?.is_default || false,
-    },
-  });
+  async function handleCreate() {
+    setLoading(true);
+    try {
+      const url = isEdit ? `/api/pipelines/${pipeline!.id}` : "/api/pipelines";
+      const method = isEdit ? "PATCH" : "POST";
 
-  function onSubmit(data: PipelineFormValues) {
-    console.log("Pipeline form submitted:", data);
-    toast.success(isEdit ? "Pipeline berhasil diupdate" : "Pipeline berhasil ditambahkan");
-    onOpenChange(false);
-    form.reset();
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Sales Pipeline",
+          is_default: true,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyimpan pipeline");
+      }
+
+      toast.success(isEdit ? "Pipeline berhasil diupdate" : "Pipeline berhasil dibuat dengan default stages");
+      onOpenChange(false);
+      onSuccess?.();
+      
+      // Force page reload to fetch new pipeline data
+      if (!isEdit) {
+        window.location.reload();
+      }
+    } catch (err) {
+      console.error("Pipeline form error:", err);
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan pipeline");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Pipeline" : "Tambah Pipeline"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Pipeline" : "Buat Pipeline Baru"}</DialogTitle>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nama Pipeline *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Sales Pipeline" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            {isEdit 
+              ? "Update pipeline yang sudah ada."
+              : "Buat pipeline baru dengan nama 'Sales Pipeline' dan default stages."
+            }
+          </p>
 
-            <FormField
-              control={form.control}
-              name="is_default"
-              render={({ field }) => (
-                <FormItem className="flex items-center justify-between rounded-lg border p-3">
-                  <FormLabel className="text-sm">Set sebagai default</FormLabel>
-                  <FormControl>
-                    <Switch checked={field.value} onCheckedChange={field.onChange} />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Batal
-              </Button>
-              <Button type="submit">
-                {isEdit ? "Update" : "Tambah"}
-              </Button>
+          {!isEdit && (
+            <div className="bg-muted rounded-md p-3">
+              <p className="text-xs font-medium mb-2">Default Stages yang akan dibuat:</p>
+              <ul className="text-xs text-muted-foreground space-y-1">
+                <li>• New Lead</li>
+                <li>• Contacted</li>
+                <li>• Interested</li>
+                <li>• Quotation Sent</li>
+                <li>• Deal Won</li>
+                <li>• Deal Lost</li>
+              </ul>
             </div>
-          </form>
-        </Form>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+              Batal
+            </Button>
+            <Button onClick={handleCreate} disabled={loading}>
+              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isEdit ? "Update" : "Buat Pipeline"}
+            </Button>
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   );

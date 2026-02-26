@@ -10,6 +10,7 @@ import { TasksFilter, type TasksFilterValues } from "@/components/tasks/tasks-fi
 import { BulkActionsBar } from "@/components/shared/bulk-actions-bar";
 import { TaskDetailDialog } from "@/components/tasks/task-detail-dialog";
 import { TaskForm } from "@/components/tasks/task-form";
+import { toast } from "sonner";
 import type { Task } from "@/types";
 
 const taskStatusOptions = [
@@ -53,6 +54,49 @@ export default function TasksPage() {
     fetchTasks();
   }, [fetchTasks]);
 
+  const handleChangeStatus = async (status: string) => {
+    if (selectedTasks.length === 0) return;
+
+    try {
+      const updates = selectedTasks.map(async (task) => {
+        const res = await fetch(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (!res.ok) throw new Error(`Failed to update task ${task.id}`);
+        return res.json();
+      });
+
+      await Promise.all(updates);
+      toast.success(`${selectedTasks.length} task berhasil diubah statusnya`);
+      setSelectedTasks([]); // Clear selection
+      fetchTasks(); // Refresh the table
+    } catch (error) {
+      toast.error("Gagal mengubah status task");
+    }
+  };
+
+  const handleDelete = async () => {
+    if (selectedTasks.length === 0) return;
+
+    try {
+      const deletes = selectedTasks.map(async (task) => {
+        const res = await fetch(`/api/tasks/${task.id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok) throw new Error(`Failed to delete task ${task.id}`);
+      });
+
+      await Promise.all(deletes);
+      toast.success(`${selectedTasks.length} task berhasil dihapus`);
+      setSelectedTasks([]); // Clear selection
+      fetchTasks(); // Refresh the table
+    } catch (error) {
+      toast.error("Gagal menghapus task");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader title="Tasks" description="Kelola semua tugas tim Anda">
@@ -82,8 +126,8 @@ export default function TasksPage() {
       />
       <BulkActionsBar
         selectedCount={selectedTasks.length}
-        onDelete={() => console.log("Delete tasks:", selectedTasks)}
-        onChangeStatus={(status) => console.log("Change status:", status, selectedTasks)}
+        onDelete={handleDelete}
+        onChangeStatus={handleChangeStatus}
         statusOptions={taskStatusOptions}
       />
     </div>

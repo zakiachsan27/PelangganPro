@@ -42,6 +42,15 @@ export function ContactsTable({ onSelectionChange }: ContactsTableProps) {
     fetchContacts();
   }, [fetchContacts]);
 
+  // Refresh data when window regains focus (after visiting contact detail)
+  useEffect(() => {
+    function handleFocus() {
+      fetchContacts();
+    }
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [fetchContacts]);
+
   return (
     <DataTable
       columns={contactsColumns}

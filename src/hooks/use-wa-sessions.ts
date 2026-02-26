@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { WaSession } from "@/types";
-import { useWaRealtime } from "./use-wa-realtime";
 
 export function useWaSessions() {
   const [sessions, setSessions] = useState<WaSession[]>([]);
@@ -26,15 +25,6 @@ export function useWaSessions() {
   useEffect(() => {
     fetchSessions();
   }, [fetchSessions]);
-
-  // Real-time session updates (QR code, connection status)
-  useWaRealtime({
-    onSessionUpdate: (session) => {
-      setSessions((prev) =>
-        prev.map((s) => (s.id === session.id ? session : s))
-      );
-    },
-  });
 
   // Create + start session
   const createSession = useCallback(

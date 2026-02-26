@@ -5,7 +5,8 @@
   "description": "CRM overlay for WhatsApp Web - Manage contacts, deals, and notes without leaving your chat",
   "permissions": [
     "storage",
-    "activeTab"
+    "activeTab",
+    "tabs"
   ],
   "host_permissions": [
     "https://web.whatsapp.com/*",

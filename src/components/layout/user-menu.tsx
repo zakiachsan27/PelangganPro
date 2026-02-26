@@ -26,7 +26,7 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button variant="ghost" className="relative h-8 w-8 rounded-full" suppressHydrationWarning>
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-primary text-primary-foreground text-xs">
               {getInitials(displayName)}
@@ -61,9 +61,18 @@ export function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="cursor-pointer text-destructive"
-          onClick={async () => {
-            await signOut();
-            router.push("/login");
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              await signOut();
+              // Use window.location for a full page reload to ensure clean state
+              window.location.href = "/login";
+            } catch (error) {
+              console.error("Logout failed:", error);
+              // Even if signOut fails, redirect to login
+              window.location.href = "/login";
+            }
           }}
         >
           <LogOut className="mr-2 h-4 w-4" />

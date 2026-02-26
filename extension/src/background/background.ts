@@ -63,6 +63,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     sendResponse({ success: true });
     return true;
   }
+
+
 });
 
 // Notify all WhatsApp Web tabs to refresh
@@ -70,13 +72,24 @@ function notifyAuthChanged() {
   console.log('[Background] Notifying tabs about auth change...');
   
   chrome.tabs.query({ url: '*://web.whatsapp.com/*' }, (tabs) => {
+    console.log('[Background] Found tabs:', tabs.length);
     tabs.forEach((tab) => {
       if (tab.id) {
         console.log('[Background] Sending refresh to tab:', tab.id);
-        chrome.tabs.sendMessage(tab.id, { type: 'AUTH_REFRESH' }).catch((err) => {
-          // Tab might not have content script loaded yet, that's ok
-          console.log('[Background] Could not notify tab', tab.id, ':', err.message);
-        });
+        // Try multiple times in case content script is still loading
+        let attempts = 0;
+        const trySendMessage = () => {
+          attempts++;
+          chrome.tabs.sendMessage(tab.id!, { type: 'AUTH_REFRESH' })
+            .then(() => console.log('[Background] Message sent successfully to tab', tab.id))
+            .catch((err) => {
+              console.log('[Background] Could not notify tab', tab.id, '(attempt', attempts, '):', err.message);
+              if (attempts < 3) {
+                setTimeout(trySendMessage, 500);
+              }
+            });
+        };
+        trySendMessage();
       }
     });
   });

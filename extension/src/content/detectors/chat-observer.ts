@@ -10,7 +10,8 @@ export class ChatObserver {
   private lastPhone: string | null = null;
   private callback: ChatChangeCallback;
   private debounceTimer: number | null = null;
-  private readonly DEBOUNCE_MS = 300;
+  private readonly DEBOUNCE_MS = 200;
+  private checkInterval: number | null = null;
 
   constructor(callback: ChatChangeCallback) {
     this.callback = callback;
@@ -21,6 +22,8 @@ export class ChatObserver {
    */
   start(): void {
     if (this.observer) return;
+
+    console.log('[ChatObserver] Starting...');
 
     // Initial check
     this.checkForChanges();
@@ -37,21 +40,22 @@ export class ChatObserver {
       }, this.DEBOUNCE_MS);
     });
 
-    // Observe the main app container
-    const appContainer = document.querySelector('#app');
-    if (appContainer) {
-      this.observer.observe(appContainer, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['data-id', 'class', 'aria-label']
-      });
-    }
+    // Observe the entire document for changes
+    this.observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-id', 'data-testid']
+    });
 
-    // Also observe URL changes (for SPA navigation)
-    this.observeUrlChanges();
+    console.log('[ChatObserver] Observer attached to document.body');
 
-    console.log('[PelangganPro] Chat observer started');
+    // Periodic check as fallback (every 1 second)
+    this.checkInterval = window.setInterval(() => {
+      this.checkForChanges();
+    }, 1000);
+
+    console.log('[ChatObserver] Started successfully');
   }
 
   /**
@@ -68,7 +72,12 @@ export class ChatObserver {
       this.debounceTimer = null;
     }
 
-    console.log('[PelangganPro] Chat observer stopped');
+    if (this.checkInterval) {
+      window.clearInterval(this.checkInterval);
+      this.checkInterval = null;
+    }
+
+    console.log('[ChatObserver] Stopped');
   }
 
   /**
@@ -78,41 +87,13 @@ export class ChatObserver {
     const currentPhone = getValidIndividualChat();
 
     if (currentPhone !== this.lastPhone) {
+      console.log('[ChatObserver] Phone changed:', {
+        from: this.lastPhone,
+        to: currentPhone
+      });
       this.lastPhone = currentPhone;
       this.callback(currentPhone);
     }
-  }
-
-  /**
-   * Observe URL changes using history API wrapper
-   */
-  private observeUrlChanges(): void {
-    const originalPushState = history.pushState;
-    const originalReplaceState = history.replaceState;
-
-    history.pushState = (...args) => {
-      originalPushState.apply(history, args);
-      this.handleUrlChange();
-    };
-
-    history.replaceState = (...args) => {
-      originalReplaceState.apply(history, args);
-      this.handleUrlChange();
-    };
-
-    window.addEventListener('popstate', () => {
-      this.handleUrlChange();
-    });
-  }
-
-  /**
-   * Handle URL change
-   */
-  private handleUrlChange(): void {
-    // Small delay to let WhatsApp render the new chat
-    window.setTimeout(() => {
-      this.checkForChanges();
-    }, 100);
   }
 
   /**

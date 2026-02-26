@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowUpDown } from "lucide-react";
 import { getInitials, formatRelativeTime } from "@/lib/format";
-import type { Ticket, TicketPriority, TicketStatus, TicketCategory } from "@/types";
+import type { Ticket, TicketPriority, TicketStatus, TicketCategory, Contact } from "@/types";
 
 function getPriorityVariant(priority: TicketPriority) {
   switch (priority) {
@@ -98,6 +98,25 @@ export function getTicketsColumns(onTitleClick?: (ticket: Ticket) => void): Colu
             {ticket.description}
           </p>
         </button>
+      );
+    },
+  },
+  {
+    id: "contact",
+    header: "Kontak",
+    cell: ({ row }) => {
+      const contact = row.original.contact;
+      if (!contact) return <span className="text-sm text-muted-foreground">-</span>;
+      const fullName = `${contact.first_name} ${contact.last_name || ""}`.trim();
+      return (
+        <div className="flex items-center gap-2">
+          <Avatar className="h-6 w-6">
+            <AvatarFallback className="text-xs bg-primary/10 text-primary">
+              {getInitials(fullName)}
+            </AvatarFallback>
+          </Avatar>
+          <span className="text-sm">{fullName}</span>
+        </div>
       );
     },
   },

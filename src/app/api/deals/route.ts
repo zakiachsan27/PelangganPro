@@ -105,6 +105,7 @@ export async function POST(req: NextRequest) {
   if (body.source !== undefined) insertData.source = body.source;
   if (body.position !== undefined) insertData.position = body.position;
 
+  // Create the deal
   const { data, error } = await supabase
     .from("deals")
     .insert(insertData)
@@ -112,5 +113,14 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Update contact status to "customer" if contact_id is provided
+  if (body.contact_id) {
+    await supabase
+      .from("contacts")
+      .update({ status: "customer" })
+      .eq("id", body.contact_id);
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

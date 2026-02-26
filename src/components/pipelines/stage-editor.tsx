@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
-import { GripVertical, Trash2, Plus } from "lucide-react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { GripVertical, Trash2, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -21,13 +21,47 @@ interface StageEditorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   stages: PipelineStage[];
+  pipelineId: string;
   pipelineName: string;
+  onSuccess?: () => void;
 }
 
-export function StageEditor({ open, onOpenChange, stages: initialStages, pipelineName }: StageEditorProps) {
-  const [stages, setStages] = useState<PipelineStage[]>(initialStages);
+// Default stages template
+const DEFAULT_STAGES = [
+  { name: "New Lead", color: "#3b82f6", is_won: false, is_lost: false },
+  { name: "Contacted", color: "#8b5cf6", is_won: false, is_lost: false },
+  { name: "Interested", color: "#f59e0b", is_won: false, is_lost: false },
+  { name: "Quotation Sent", color: "#10b981", is_won: false, is_lost: false },
+  { name: "Deal Won", color: "#22c55e", is_won: true, is_lost: false },
+  { name: "Deal Lost", color: "#ef4444", is_won: false, is_lost: true },
+];
+
+export function StageEditor({ open, onOpenChange, stages: initialStages, pipelineId, pipelineName, onSuccess }: StageEditorProps) {
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+
+  // Update stages when dialog opens or initialStages changes
+  useEffect(() => {
+    if (open) {
+      if (initialStages.length === 0) {
+        // Create from default template
+        setStages(DEFAULT_STAGES.map((s, i) => ({
+          id: `stage-new-${Date.now()}-${i}`,
+          pipeline_id: pipelineId,
+          name: s.name,
+          position: i + 1,
+          color: s.color,
+          is_won: s.is_won,
+          is_lost: s.is_lost,
+          created_at: new Date().toISOString(),
+        })));
+      } else {
+        setStages(initialStages);
+      }
+    }
+  }, [open, initialStages, pipelineId]);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
   const dragNodeRef = useRef<HTMLDivElement | null>(null);
 
   function updateStage(id: string, updates: Partial<PipelineStage>) {
@@ -41,7 +75,7 @@ export function StageEditor({ open, onOpenChange, stages: initialStages, pipelin
   function addStage() {
     const newStage: PipelineStage = {
       id: `stage-new-${Date.now()}`,
-      pipeline_id: stages[0]?.pipeline_id || "pipe-001",
+      pipeline_id: pipelineId,
       name: "",
       position: stages.length + 1,
       color: PRESET_COLORS[stages.length % PRESET_COLORS.length],
@@ -74,15 +108,41 @@ export function StageEditor({ open, onOpenChange, stages: initialStages, pipelin
     setOverIdx(null);
   }, [dragIdx, overIdx]);
 
-  function handleSave() {
+  async function handleSave() {
     const emptyNames = stages.filter((s) => !s.name.trim());
     if (emptyNames.length > 0) {
       toast.error("Semua stage harus memiliki nama");
       return;
     }
-    console.log("Saving stages:", stages);
-    toast.success("Stages berhasil disimpan");
-    onOpenChange(false);
+
+    setLoading(true);
+    try {
+      console.log("[StageEditor] Saving stages:", stages);
+      const res = await fetch(`/api/pipelines/${pipelineId}/stages`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stages }),
+      });
+
+      console.log("[StageEditor] Response status:", res.status);
+      
+      if (!res.ok) {
+        const err = await res.json();
+        console.error("[StageEditor] Error response:", err);
+        throw new Error(err.error || "Gagal menyimpan stages");
+      }
+
+      const data = await res.json();
+      console.log("[StageEditor] Success:", data);
+      toast.success("Stages berhasil disimpan");
+      onOpenChange(false);
+      onSuccess?.();
+    } catch (err) {
+      console.error("Stage editor error:", err);
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan stages");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -165,10 +225,11 @@ export function StageEditor({ open, onOpenChange, stages: initialStages, pipelin
         </Button>
 
         <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Batal
           </Button>
-          <Button onClick={handleSave}>
+          <Button onClick={handleSave} disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Simpan Perubahan
           </Button>
         </div>

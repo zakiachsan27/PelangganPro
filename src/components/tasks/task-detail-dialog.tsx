@@ -173,7 +173,11 @@ export function TaskDetailDialog({ task, open, onOpenChange }: TaskDetailDialogP
           {/* Notes */}
           <div>
             <p className="text-sm font-medium mb-2">Catatan</p>
-            <NoteForm onSubmit={(content) => console.log("Task note:", content)} />
+            <NoteForm 
+                  contactId={task.contact_id || undefined} 
+                  dealId={task.deal_id || undefined}
+                  onSubmit={() => {}}
+                />
           </div>
         </div>
       </DialogContent>

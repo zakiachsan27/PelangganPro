@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   CommandDialog,
   CommandEmpty,
@@ -44,7 +45,7 @@ interface SearchDeal {
   title: string;
 }
 
-export function CommandPalette() {
+function CommandPaletteContent() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
@@ -200,3 +201,8 @@ export function CommandPalette() {
     </CommandDialog>
   );
 }
+
+// Dynamic import with SSR disabled to prevent hydration issues
+export const CommandPalette = dynamic(() => Promise.resolve(CommandPaletteContent), {
+  ssr: false,
+});

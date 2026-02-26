@@ -17,10 +17,24 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Fetch all contact_rfm rows (segment + total_spent) and aggregate in JS
+  // Get current user's org_id
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.org_id) {
+    return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  }
+
+  const orgId = profile.org_id;
+
+  // Fetch contact_rfm rows with contact org_id filter
   const { data, error } = await supabase
     .from("contact_rfm")
-    .select("segment, total_spent");
+    .select("segment, total_spent, contact:contact_id(org_id)")
+    .eq("contact.org_id", orgId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 

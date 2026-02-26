@@ -1,18 +1,45 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Layers } from "lucide-react";
+import { Layers, Loader2 } from "lucide-react";
 
-const emptyStages = [
-  { stage: "Lead", count: 0, value: 0, color: "#3b82f6" },
-  { stage: "Qualified", count: 0, value: 0, color: "#8b5cf6" },
-  { stage: "Proposal", count: 0, value: 0, color: "#f59e0b" },
-  { stage: "Negotiation", count: 0, value: 0, color: "#f97316" },
-  { stage: "Closed Won", count: 0, value: 0, color: "#10b981" },
-];
+interface PipelineStage {
+  stage: string;
+  count: number;
+  value: number;
+  color: string;
+}
 
 export function PipelineFunnelChart() {
-  const hasData = emptyStages.some((s) => s.count > 0);
+  const [stages, setStages] = useState<PipelineStage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
+
+  const fetchPipeline = async () => {
+    try {
+      const res = await fetch(`/api/dashboard/pipeline?_t=${Date.now()}`, {
+        cache: 'no-store',
+      });
+      if (!res.ok) throw new Error("Gagal memuat data pipeline");
+      const json = await res.json();
+      setStages(json.data || []);
+    } catch (err) {
+      console.error("Error fetching pipeline:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    // Prevent re-fetch on tab switch (React re-mount)
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    
+    fetchPipeline();
+  }, []);
+
+  const hasData = stages.some((s) => s.count > 0);
 
   return (
     <Card>
@@ -20,10 +47,14 @@ export function PipelineFunnelChart() {
         <CardTitle className="text-base">Pipeline Funnel</CardTitle>
       </CardHeader>
       <CardContent>
-        {hasData ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-[180px]">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : hasData ? (
           <div className="space-y-3">
-            {emptyStages.map((stage) => {
-              const maxCount = Math.max(...emptyStages.map((s) => s.count));
+            {stages.map((stage) => {
+              const maxCount = Math.max(...stages.map((s) => s.count));
               return (
                 <div key={stage.stage} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">

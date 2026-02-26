@@ -52,7 +52,7 @@ export function NotificationPanel() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative">
+        <Button variant="ghost" size="icon" className="relative" suppressHydrationWarning>
           <Bell className="h-5 w-5" />
           {hasUnread && (
             <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-destructive animate-pulse" />

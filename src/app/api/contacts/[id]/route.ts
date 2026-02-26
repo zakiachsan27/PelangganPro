@@ -5,7 +5,8 @@ const CONTACT_SELECT = `
   *,
   company:companies(id, name),
   owner:profiles!contacts_owner_id_fkey(id, full_name, avatar_url),
-  tags:contact_tags(tag:tags(id, name, color))
+  tags:contact_tags(tag:tags(id, name, color)),
+  deals:deals(id, value, status, stage:pipeline_stages(name))
 `;
 
 // GET /api/contacts/[id] — Get single contact with relations
@@ -29,7 +30,21 @@ export async function GET(
   }
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json(data);
+  // Calculate lifetime_value from won deals
+  const deals = data.deals || [];
+  const lifetime_value = deals
+    .filter((d: any) => d.status === 'won')
+    .reduce((sum: number, d: any) => sum + (Number(d.value) || 0), 0);
+  
+  // Get current pipeline stage
+  const openDeal = deals.find((d: any) => d.status === 'open');
+  const pipeline_status = openDeal?.stage?.name || (deals.length > 0 ? 'No Active Deal' : '-');
+
+  return NextResponse.json({
+    ...data,
+    lifetime_value,
+    pipeline_status,
+  });
 }
 
 // PATCH /api/contacts/[id] — Update contact

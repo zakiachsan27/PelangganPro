@@ -287,7 +287,7 @@ export default function CompanyDetailPage({
               <CardTitle className="text-base">Notes ({notes.length})</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <NoteForm onSubmit={(content) => console.log("New company note:", content)} />
+              <NoteForm companyId={id} onSubmit={() => fetchData()} />
               {notes.length > 0 ? (
                 <div className="space-y-4">
                   {notes.map((note) => (

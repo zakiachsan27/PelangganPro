@@ -31,16 +31,28 @@ export default function DealsPage() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log("[DealsPage] Fetching data...");
 
       // 1. Fetch pipelines and find default
       const pipelinesRes = await fetch("/api/pipelines");
-      if (!pipelinesRes.ok) throw new Error("Gagal memuat pipeline");
+      console.log("[DealsPage] Pipelines response:", pipelinesRes.status);
+      
+      if (!pipelinesRes.ok) {
+        const errText = await pipelinesRes.text();
+        console.error("[DealsPage] Pipelines error:", errText);
+        throw new Error("Gagal memuat pipeline");
+      }
+      
       const pipelines: Pipeline[] = await pipelinesRes.json();
+      console.log("[DealsPage] Pipelines data:", pipelines);
 
       const defaultPipeline = pipelines.find((p) => p.is_default) || pipelines[0] || null;
+      console.log("[DealsPage] Selected pipeline:", defaultPipeline);
+      
       setPipeline(defaultPipeline);
 
       if (!defaultPipeline) {
+        console.log("[DealsPage] No pipeline found");
         setStages([]);
         setDeals([]);
         setLoading(false);
@@ -57,7 +69,7 @@ export default function DealsPage() {
       const dealsJson = await dealsRes.json();
       setDeals(dealsJson.data || []);
     } catch (err) {
-      console.error("Failed to load deals page data:", err);
+      console.error("[DealsPage] Failed to load data:", err);
       toast.error("Gagal memuat data deals");
     } finally {
       setLoading(false);
@@ -65,8 +77,11 @@ export default function DealsPage() {
   }, []);
 
   useEffect(() => {
+    console.log("[DealsPage] Initial fetch");
     fetchData();
   }, [fetchData]);
+
+
 
   if (loading) {
     return (
@@ -79,14 +94,38 @@ export default function DealsPage() {
   if (!pipeline) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Deals & Pipeline" description="Pipeline penjualan dan kelola tahapan" />
+        <PageHeader title="Deals & Pipeline" description="Pipeline penjualan dan kelola tahapan">
+          <Button onClick={() => setEditPipelineOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Buat Pipeline
+          </Button>
+        </PageHeader>
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground mb-4">
               Belum ada pipeline. Buat pipeline pertama untuk mulai mengelola deals.
             </p>
+            <Button onClick={() => setEditPipelineOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Buat Pipeline Pertama
+            </Button>
           </CardContent>
         </Card>
+        <PipelineForm 
+          open={editPipelineOpen} 
+          onOpenChange={(open) => {
+            console.log("[DealsPage] PipelineForm onOpenChange:", open);
+            setEditPipelineOpen(open);
+            if (!open) {
+              console.log("[DealsPage] Refreshing data after pipeline dialog close");
+              fetchData();
+            }
+          }}
+          onSuccess={() => {
+            console.log("[DealsPage] PipelineForm onSuccess triggered");
+            fetchData();
+          }}
+        />
       </div>
     );
   }
@@ -176,6 +215,16 @@ export default function DealsPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {stages.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-8 border rounded-lg bg-muted/30 mb-4">
+                  <p className="text-muted-foreground mb-2">
+                    Pipeline ini belum memiliki stages.
+                  </p>
+                  <Button size="sm" onClick={() => setStageEditorOpen(true)}>
+                    Buat Default Stages
+                  </Button>
+                </div>
+              )}
               <div className="space-y-2">
                 {stages.map((stage) => {
                   const stageDeals = deals.filter((d) => d.stage_id === stage.id);
@@ -215,12 +264,25 @@ export default function DealsPage() {
       </Tabs>
 
       <DealForm open={formOpen} onOpenChange={setFormOpen} onSuccess={fetchData} />
-      <PipelineForm open={editPipelineOpen} onOpenChange={setEditPipelineOpen} pipeline={pipeline} />
+      <PipelineForm 
+        open={editPipelineOpen} 
+        onOpenChange={(open) => {
+          setEditPipelineOpen(open);
+          if (!open) fetchData(); // Refresh data when dialog closes
+        }} 
+        pipeline={pipeline}
+        onSuccess={fetchData}
+      />
       <StageEditor
         open={stageEditorOpen}
-        onOpenChange={setStageEditorOpen}
+        onOpenChange={(open) => {
+          setStageEditorOpen(open);
+          if (!open) fetchData();
+        }}
         stages={stages}
+        pipelineId={pipeline.id}
         pipelineName={pipeline.name}
+        onSuccess={fetchData}
       />
     </div>
   );

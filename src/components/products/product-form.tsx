@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Product } from "@/types";
+import { CurrencyInput, NumberInput } from "@/components/ui/currency-input";
 
 const productSchema = z.object({
   name: z.string().min(1, "Nama produk wajib diisi"),
@@ -123,11 +124,10 @@ export function ProductForm({ open, onOpenChange, product, onSuccess }: ProductF
                   <FormItem>
                     <FormLabel>Harga (IDR) *</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
-                        placeholder="500000"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                      <CurrencyInput
+                        placeholder="500.000"
+                        value={field.value}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />
@@ -166,11 +166,10 @@ export function ProductForm({ open, onOpenChange, product, onSuccess }: ProductF
                   <FormItem>
                     <FormLabel>Stok</FormLabel>
                     <FormControl>
-                      <Input
-                        type="number"
+                      <NumberInput
                         placeholder="100"
-                        {...field}
-                        onChange={(e) => field.onChange(Number(e.target.value) || 0)}
+                        value={field.value}
+                        onChange={field.onChange}
                       />
                     </FormControl>
                     <FormMessage />

@@ -1,9 +1,15 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { verifyExtensionToken, getUserOrg } from "@/lib/extension-auth";
 import { z } from "zod";
 
 const createNoteSchema = z.object({
   contactId: z.string().uuid(),
+  content: z.string().min(1),
+});
+
+const updateNoteSchema = z.object({
+  noteId: z.string().uuid(),
   content: z.string().min(1),
 });
 
@@ -13,55 +19,55 @@ const createNoteSchema = z.object({
  */
 export async function POST(request: NextRequest) {
   try {
+    // Verify token from Authorization header
+    const { user, error: authError } = await verifyExtensionToken(request);
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: authError || "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const validated = createNoteSchema.safeParse(body);
 
     if (!validated.success) {
       return NextResponse.json(
-        { error: "Invalid request body", details: validated.error.errors },
+        { error: "Invalid request body", details: validated.error.issues },
         { status: 400 }
       );
     }
 
     const { contactId, content } = validated.data;
 
-    // Get authenticated user
-    const supabase = await createSupabaseServerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    // Create service role client
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    // Get user's org_id and verify contact belongs to org
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", user.id)
-      .single();
-
-    if (profileError || !profile) {
+    // Get user's org_id
+    const orgId = await getUserOrg(supabase, user.id);
+    if (!orgId) {
       return NextResponse.json(
         { error: "Profile not found" },
         { status: 403 }
       );
     }
 
-    // Verify contact exists in org
+    console.log("[Extension Note] User:", user.id, "Org:", orgId, "Contact:", contactId);
+
+    // Verify contact belongs to org
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
       .select("id")
       .eq("id", contactId)
-      .eq("org_id", profile.org_id)
+      .eq("org_id", orgId)
       .single();
 
     if (contactError || !contact) {
+      console.log("[Extension Note] Contact not found:", contactError?.message);
       return NextResponse.json(
         { error: "Contact not found" },
         { status: 404 }
@@ -72,7 +78,7 @@ export async function POST(request: NextRequest) {
     const { data: note, error: noteError } = await supabase
       .from("notes")
       .insert({
-        org_id: profile.org_id,
+        org_id: orgId,
         contact_id: contactId,
         content,
         author_id: user.id,
@@ -81,16 +87,18 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (noteError) {
-      console.error("Failed to create note:", noteError);
+      console.error("[Extension Note] Failed to create note:", noteError);
       return NextResponse.json(
         { error: "Failed to create note" },
         { status: 500 }
       );
     }
 
+    console.log("[Extension Note] Created note:", note.id, "org_id:", orgId);
+
     // Create activity log
     await supabase.from("activities").insert({
-      org_id: profile.org_id,
+      org_id: orgId,
       entity_type: "contact",
       entity_id: contactId,
       action: "note_added",
@@ -100,7 +108,110 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, note }, { status: 201 });
   } catch (error) {
-    console.error("Extension note API error:", error);
+    console.error("[Extension Note] API error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PATCH /api/extension/note
+ * Update an existing note
+ */
+export async function PATCH(request: NextRequest) {
+  try {
+    // Verify token from Authorization header
+    const { user, error: authError } = await verifyExtensionToken(request);
+    
+    if (!user) {
+      return NextResponse.json(
+        { error: authError || "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const validated = updateNoteSchema.safeParse(body);
+
+    if (!validated.success) {
+      return NextResponse.json(
+        { error: "Invalid request body", details: validated.error.issues },
+        { status: 400 }
+      );
+    }
+
+    const { noteId, content } = validated.data;
+
+    // Create service role client
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    // Get user's org_id
+    const orgId = await getUserOrg(supabase, user.id);
+    if (!orgId) {
+      return NextResponse.json(
+        { error: "Profile not found" },
+        { status: 403 }
+      );
+    }
+
+    console.log("[Extension Note] Update - User:", user.id, "Org:", orgId, "Note:", noteId);
+
+    // Verify note belongs to org and user is the author (or skip author check for flexibility)
+    const { data: existingNote, error: noteError } = await supabase
+      .from("notes")
+      .select("id, contact_id, author_id")
+      .eq("id", noteId)
+      .eq("org_id", orgId)
+      .single();
+
+    if (noteError || !existingNote) {
+      console.log("[Extension Note] Note not found:", noteError?.message);
+      return NextResponse.json(
+        { error: "Note not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update note
+    const { data: updatedNote, error: updateError } = await supabase
+      .from("notes")
+      .update({
+        content,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", noteId)
+      .eq("org_id", orgId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error("[Extension Note] Failed to update note:", updateError);
+      return NextResponse.json(
+        { error: "Failed to update note" },
+        { status: 500 }
+      );
+    }
+
+    console.log("[Extension Note] Updated note:", noteId);
+
+    // Create activity log
+    await supabase.from("activities").insert({
+      org_id: orgId,
+      entity_type: "contact",
+      entity_id: existingNote.contact_id,
+      action: "note_updated",
+      details: { note_id: noteId },
+      actor_id: user.id,
+    });
+
+    return NextResponse.json({ success: true, note: updatedNote }, { status: 200 });
+  } catch (error) {
+    console.error("[Extension Note] API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }

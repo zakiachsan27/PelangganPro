@@ -2,9 +2,14 @@ import { authStorage } from '../storage/auth-storage';
 import type { 
   ContactData, 
   CreateNoteRequest, 
+  UpdateNoteRequest,
   UpdateStageRequest,
   AssignRequest,
-  CreateReminderRequest 
+  CreateReminderRequest,
+  TicketInfo,
+  CreateTicketRequest,
+  TaskInfo,
+  PipelineInfo
 } from '../types';
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -171,10 +176,24 @@ class CRMClient {
     return result;
   }
 
-  async getContact(phone: string, name?: string, autoCreate: boolean = true): Promise<ContactData | null> {
-    const params = new URLSearchParams({ phone });
+  async getContact(
+    phoneOrId: string, 
+    name?: string, 
+    autoCreate: boolean = true, 
+    bustCache: boolean = false,
+    isId: boolean = false
+  ): Promise<ContactData | null> {
+    const params = new URLSearchParams();
+    
+    if (isId) {
+      params.append('id', phoneOrId);
+    } else {
+      params.append('phone', phoneOrId);
+    }
+    
     if (name) params.append('name', name);
     if (autoCreate) params.append('autoCreate', 'true');
+    if (bustCache) params.append('_t', Date.now().toString());
     
     try {
       return await this.fetch<ContactData>(`/contact?${params.toString()}`);
@@ -189,6 +208,13 @@ class CRMClient {
   async addNote(data: CreateNoteRequest): Promise<void> {
     await this.fetch('/note', {
       method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async updateNote(data: UpdateNoteRequest): Promise<void> {
+    await this.fetch('/note', {
+      method: 'PATCH',
       body: JSON.stringify(data)
     });
   }
@@ -208,10 +234,90 @@ class CRMClient {
   }
 
   async addReminder(data: CreateReminderRequest): Promise<void> {
-    await this.fetch('/reminder', {
+    await this.fetch('/reminders', {
       method: 'POST',
       body: JSON.stringify(data)
     });
+  }
+
+  async getContacts(): Promise<{ id: string; name: string; phone: string | null }[]> {
+    const response = await this.fetch<{ data: { id: string; name: string; phone: string | null }[] }>('/contacts');
+    return response.data || [];
+  }
+
+  async createContact(data: {
+    first_name: string;
+    last_name?: string;
+    phone?: string;
+    whatsapp?: string;
+    email?: string;
+  }): Promise<{ id: string; name: string; phone: string | null }> {
+    return this.fetch<{ id: string; name: string; phone: string | null }>('/contacts', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getTickets(contactId: string): Promise<TicketInfo[]> {
+    const response = await this.fetch<{ data: TicketInfo[] }>(`/tickets?contact_id=${contactId}`);
+    return response.data || [];
+  }
+
+  async createTicket(data: CreateTicketRequest): Promise<TicketInfo> {
+    const response = await this.fetch<{ data: TicketInfo }>('/tickets', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+    return response.data;
+  }
+
+  async getUpcomingReminders(contactId: string): Promise<TaskInfo[]> {
+    try {
+      const response = await this.fetch<{ data: TaskInfo[] }>(`/reminders?contact_id=${contactId}&upcoming=true`);
+      return response.data || [];
+    } catch (err) {
+      console.error('[CRMClient] Failed to get reminders:', err);
+      return [];
+    }
+  }
+
+  async updateContact(contactId: string, data: { status?: string; source?: string }): Promise<void> {
+    await this.fetch(`/contacts/${contactId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data)
+    });
+  }
+
+  async getPipelines(): Promise<PipelineInfo[]> {
+    const response = await this.fetch<{ data: PipelineInfo[] }>('/deals');
+    return response.data || [];
+  }
+
+  async createDeal(data: { 
+    contactId: string; 
+    title: string; 
+    value: number; 
+    currency: string;
+    pipelineId: string;
+    stageId: string;
+  }): Promise<void> {
+    console.log('[CRMClient] Creating deal:', data);
+    try {
+      await this.fetch('/deals', {
+        method: 'POST',
+        body: JSON.stringify({
+          contactId: data.contactId,
+          title: data.title,
+          value: data.value,
+          currency: data.currency,
+          pipelineId: data.pipelineId,
+          stageId: data.stageId,
+        })
+      });
+    } catch (err) {
+      console.error('[CRMClient] Create deal error:', err);
+      throw err;
+    }
   }
 }
 

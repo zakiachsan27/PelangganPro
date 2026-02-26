@@ -25,16 +25,51 @@ interface DealDetailSidebarProps {
   deal: Deal | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onStageChange?: (dealId: string, stageId: string) => void;
+  onStageChange?: (dealId: string, stageId: string, status?: "won" | "lost") => void;
+  onDealUpdated?: (deal: Deal) => void;
   stages?: PipelineStage[];
 }
 
-export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, stages = [] }: DealDetailSidebarProps) {
+export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, onDealUpdated, stages = [] }: DealDetailSidebarProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [notes, setNotes] = useState<Note[]>([]);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(false);
+
+  // Fetch notes function
+  const fetchNotes = async () => {
+    if (!deal) return;
+    setLoadingNotes(true);
+    try {
+      const res = await fetch(`/api/notes?deal_id=${deal.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setNotes(json.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notes:", err);
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  // Fetch activities function
+  const fetchActivities = async () => {
+    if (!deal) return;
+    setLoadingActivities(true);
+    try {
+      const res = await fetch(`/api/activities?entity_type=deal&entity_id=${deal.id}`);
+      if (res.ok) {
+        const json = await res.json();
+        setActivities(json.data || []);
+      }
+    } catch (err) {
+      console.error("Failed to fetch activities:", err);
+    } finally {
+      setLoadingActivities(false);
+    }
+  };
 
   // Fetch notes and activities when sidebar opens with a deal
   useEffect(() => {
@@ -42,36 +77,6 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
       setNotes([]);
       setActivities([]);
       return;
-    }
-
-    async function fetchNotes() {
-      setLoadingNotes(true);
-      try {
-        const res = await fetch(`/api/notes?deal_id=${deal!.id}`);
-        if (res.ok) {
-          const json = await res.json();
-          setNotes(json.data || []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch notes:", err);
-      } finally {
-        setLoadingNotes(false);
-      }
-    }
-
-    async function fetchActivities() {
-      setLoadingActivities(true);
-      try {
-        const res = await fetch(`/api/activities?entity_type=deal&entity_id=${deal!.id}`);
-        if (res.ok) {
-          const json = await res.json();
-          setActivities(json.data || []);
-        }
-      } catch (err) {
-        console.error("Failed to fetch activities:", err);
-      } finally {
-        setLoadingActivities(false);
-      }
     }
 
     fetchNotes();
@@ -85,6 +90,62 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
   const owner = deal.owner;
   const stage = deal.stage;
   const openStages = stages.filter((s) => !s.is_won && !s.is_lost);
+  const wonStage = stages.find((s) => s.is_won);
+  const lostStage = stages.find((s) => s.is_lost);
+
+  async function handleMarkWon() {
+    if (!wonStage) {
+      toast.error("Stage 'Deal Won' tidak ditemukan");
+      return;
+    }
+    if (!deal) {
+      toast.error("Deal tidak ditemukan");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "won",
+          stage_id: wonStage.id,
+          actual_close_date: new Date().toISOString().split("T")[0],
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal update deal");
+      toast.success("Deal berhasil ditandai sebagai Won");
+      onStageChange?.(deal.id, wonStage.id, "won");
+    } catch (err) {
+      toast.error("Gagal menandai deal sebagai Won");
+    }
+  }
+
+  async function handleMarkLost() {
+    if (!lostStage) {
+      toast.error("Stage 'Deal Lost' tidak ditemukan");
+      return;
+    }
+    if (!deal) {
+      toast.error("Deal tidak ditemukan");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/deals/${deal.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "lost",
+          stage_id: lostStage.id,
+          actual_close_date: new Date().toISOString().split("T")[0],
+        }),
+      });
+      if (!res.ok) throw new Error("Gagal update deal");
+      toast.success("Deal berhasil ditandai sebagai Lost");
+      onStageChange?.(deal.id, lostStage.id, "lost");
+    } catch (err) {
+      toast.error("Gagal menandai deal sebagai Lost");
+    }
+  }
 
   const contactName = contact
     ? `${contact.first_name} ${contact.last_name || ""}`.trim()
@@ -96,20 +157,8 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
     lost: "bg-destructive/10 text-destructive",
   };
 
-  async function handleAddNote(content: string) {
-    try {
-      const res = await fetch("/api/notes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, deal_id: deal!.id }),
-      });
-      if (!res.ok) throw new Error("Gagal menambah catatan");
-      const newNote = await res.json();
-      setNotes((prev) => [newNote, ...prev]);
-    } catch (err) {
-      console.error("Failed to add note:", err);
-      toast.error("Gagal menambah catatan");
-    }
+  async function handleAddNote() {
+    await fetchNotes();
   }
 
   return (
@@ -143,9 +192,30 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
                 <Select
                   value={deal.stage_id}
                   onValueChange={(stageId) => {
+                    const targetStage = stages.find((s) => s.id === stageId);
+                    const isClosingStage = targetStage?.is_won || targetStage?.is_lost;
+                    
                     if (onStageChange) {
-                      onStageChange(deal.id, stageId);
-                      toast.success("Stage berhasil diubah");
+                      // If moving to won/lost stage, also update status and actual_close_date
+                      if (isClosingStage) {
+                        const newStatus = targetStage?.is_won ? "won" : "lost";
+                        // Update via API first
+                        fetch(`/api/deals/${deal.id}`, {
+                          method: "PATCH",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            stage_id: stageId,
+                            status: newStatus,
+                            actual_close_date: new Date().toISOString().split("T")[0],
+                          }),
+                        }).then(() => {
+                          onStageChange(deal.id, stageId, newStatus);
+                          toast.success(`Deal berhasil ditandai sebagai ${newStatus === "won" ? "Won" : "Lost"}`);
+                        });
+                      } else {
+                        onStageChange(deal.id, stageId);
+                        toast.success("Stage berhasil diubah");
+                      }
                     }
                   }}
                 >
@@ -169,7 +239,8 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
                     variant="outline"
                     size="sm"
                     className="text-success-foreground border-success/30 hover:bg-success/10"
-                    onClick={() => toast.success("Deal marked as Won (demo)")}
+                    onClick={handleMarkWon}
+                    disabled={!wonStage}
                   >
                     <Trophy className="mr-1.5 h-3.5 w-3.5" />
                     Won
@@ -178,7 +249,8 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
                     variant="outline"
                     size="sm"
                     className="text-destructive border-destructive/30 hover:bg-destructive/10"
-                    onClick={() => toast.success("Deal marked as Lost (demo)")}
+                    onClick={handleMarkLost}
+                    disabled={!lostStage}
                   >
                     <XCircle className="mr-1.5 h-3.5 w-3.5" />
                     Lost
@@ -240,7 +312,7 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
             {/* Notes */}
             <div>
               <p className="text-sm font-semibold mb-2">Notes ({notes.length})</p>
-              <NoteForm onSubmit={handleAddNote} />
+              <NoteForm dealId={deal?.id} onSubmit={handleAddNote} />
               {loadingNotes ? (
                 <div className="flex justify-center py-3">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -299,7 +371,25 @@ export function DealDetailSidebar({ deal, open, onOpenChange, onStageChange, sta
         </SheetContent>
       </Sheet>
 
-      <DealForm open={editOpen} onOpenChange={setEditOpen} deal={deal} />
+      <DealForm 
+        open={editOpen} 
+        onOpenChange={setEditOpen} 
+        deal={deal} 
+        onSuccess={async () => {
+          // Fetch updated deal data
+          if (deal) {
+            try {
+              const res = await fetch(`/api/deals/${deal.id}`);
+              if (res.ok) {
+                const updatedDeal = await res.json();
+                onDealUpdated?.(updatedDeal);
+              }
+            } catch (err) {
+              console.error("Failed to refresh deal:", err);
+            }
+          }
+        }}
+      />
     </>
   );
 }

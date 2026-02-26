@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, User, Loader2 } from "lucide-react";
+import { Send, User, Loader2, Calendar, MessageSquare } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatRelativeTime, getInitials } from "@/lib/format";
 import { toast } from "sonner";
@@ -159,37 +159,41 @@ export function TicketDetailDialog({ ticket, open, onOpenChange, onUpdated }: Ti
 
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setComment(""); }}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="pr-6">{ticket.title}</DialogTitle>
+          <DialogTitle className="pr-6 text-xl">{ticket.title}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
-          {/* Status, Priority, Category */}
+        <div className="space-y-5">
+          {/* Status Badges */}
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[ticket.status]}`}>
+            <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${statusColors[ticket.status]}`}>
               {ticketStatusLabels[ticket.status]}
             </span>
-            <Badge variant={priorityColors[ticket.priority] as "destructive" | "default" | "secondary" | "outline"} className="text-xs">
+            <Badge variant={priorityColors[ticket.priority] as "destructive" | "default" | "secondary" | "outline"} className="text-xs px-2.5 py-0.5">
               {ticket.priority}
             </Badge>
-            <Badge variant={getCategoryVariant(ticket.category)} className="text-xs">
+            <Badge variant={getCategoryVariant(ticket.category)} className="text-xs px-2.5 py-0.5">
               {ticketCategoryLabels[ticket.category]}
             </Badge>
           </div>
 
-          {/* Description */}
-          <p className="text-sm text-muted-foreground">{ticket.description}</p>
+          {/* Description Card */}
+          <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+            <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">
+              {ticket.description}
+            </p>
+          </div>
 
-          {/* Quick actions */}
-          <div className="grid grid-cols-2 gap-2">
+          {/* Quick Actions */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Status</p>
+              <p className="text-xs text-muted-foreground mb-1.5 font-medium">Status</p>
               <Select
                 value={ticket.status}
                 onValueChange={handleStatusChange}
               >
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-9 text-sm bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -200,15 +204,16 @@ export function TicketDetailDialog({ ticket, open, onOpenChange, onUpdated }: Ti
               </Select>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground mb-1">Assignee</p>
+              <p className="text-xs text-muted-foreground mb-1.5 font-medium">Assignee</p>
               <Select
                 value={ticket.assignee_id || "unassigned"}
                 onValueChange={handleAssigneeChange}
               >
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
+                <SelectTrigger className="h-9 text-sm bg-white">
+                  <SelectValue placeholder="Pilih assignee" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="unassigned">Belum ditugaskan</SelectItem>
                   {users.map((u) => (
                     <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
                   ))}
@@ -219,38 +224,51 @@ export function TicketDetailDialog({ ticket, open, onOpenChange, onUpdated }: Ti
 
           <Separator />
 
-          {/* Details */}
-          <div className="space-y-2 text-sm">
+          {/* Details Grid */}
+          <div className="grid grid-cols-2 gap-4 text-sm">
             {reporter && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-16">Reporter</span>
-                <Avatar className="h-5 w-5">
-                  <AvatarFallback className="text-[8px]">{getInitials(reporter.full_name)}</AvatarFallback>
-                </Avatar>
-                <span>{reporter.full_name}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-14">Reporter</span>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                      {getInitials(reporter.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{reporter.full_name}</span>
+                </div>
               </div>
             )}
             {assignee && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-16">Assignee</span>
-                <Avatar className="h-5 w-5">
-                  <AvatarFallback className="text-[8px]">{getInitials(assignee.full_name)}</AvatarFallback>
-                </Avatar>
-                <span>{assignee.full_name}</span>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-14">Assignee</span>
+                <div className="flex items-center gap-2">
+                  <Avatar className="h-6 w-6">
+                    <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                      {getInitials(assignee.full_name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-medium">{assignee.full_name}</span>
+                </div>
               </div>
             )}
             {contact && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-16">Contact</span>
-                <User className="h-3.5 w-3.5 text-muted-foreground" />
-                <Link href={`/contacts/${contact.id}`} className="hover:underline">
-                  {contact.first_name} {contact.last_name || ""}
-                </Link>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-14">Kontak</span>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <Link href={`/contacts/${contact.id}`} className="hover:underline font-medium text-primary">
+                    {contact.first_name} {contact.last_name || ""}
+                  </Link>
+                </div>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground w-16">Dibuat</span>
-              <span className="text-muted-foreground">{formatRelativeTime(ticket.created_at)}</span>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground w-14">Dibuat</span>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="h-3.5 w-3.5" />
+                <span>{formatRelativeTime(ticket.created_at)}</span>
+              </div>
             </div>
           </div>
 
@@ -258,48 +276,64 @@ export function TicketDetailDialog({ ticket, open, onOpenChange, onUpdated }: Ti
 
           {/* Komentar Section */}
           <div>
-            <p className="text-sm font-medium mb-3">
-              Komentar ({loadingComments ? "..." : comments.length})
-            </p>
+            <div className="flex items-center gap-2 mb-4">
+              <MessageSquare className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-medium">
+                Komentar ({loadingComments ? "..." : comments.length})
+              </p>
+            </div>
 
             {loadingComments ? (
               <div className="flex items-center justify-center py-4">
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
             ) : comments.length > 0 ? (
-              <div className="space-y-3 mb-4 max-h-[200px] overflow-y-auto">
+              <div className="space-y-3 mb-5 max-h-[250px] overflow-y-auto">
                 {comments.map((c) => {
                   const author = c.author || null;
                   return (
-                    <div key={c.id} className="flex gap-2">
-                      <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                        <AvatarFallback className="text-[8px]">
-                          {author ? getInitials(author.full_name) : "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
+                    <div key={c.id} className="bg-slate-50 rounded-lg p-3 border border-slate-100">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-[10px] bg-primary/10 text-primary">
+                            {author ? getInitials(author.full_name) : "?"}
+                          </AvatarFallback>
+                        </Avatar>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-medium">{author?.full_name || "Unknown"}</span>
-                          <span className="text-[10px] text-muted-foreground">{formatRelativeTime(c.created_at)}</span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {formatRelativeTime(c.created_at)}
+                          </span>
                         </div>
-                        <p className="text-sm text-muted-foreground mt-0.5">{c.content}</p>
                       </div>
+                      <p className="text-sm text-slate-700 whitespace-pre-wrap pl-8">
+                        {c.content}
+                      </p>
                     </div>
                   );
                 })}
               </div>
-            ) : null}
+            ) : (
+              <div className="text-center py-6 text-muted-foreground text-sm mb-4">
+                Belum ada komentar
+              </div>
+            )}
 
             {/* Add Comment */}
-            <div className="space-y-2">
+            <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
               <Textarea
                 placeholder="Tulis komentar..."
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                rows={2}
+                rows={3}
+                className="bg-white resize-none"
               />
-              <div className="flex justify-end">
-                <Button size="sm" onClick={handleAddComment} disabled={!comment.trim() || sendingComment}>
+              <div className="flex justify-end mt-3">
+                <Button 
+                  size="sm" 
+                  onClick={handleAddComment} 
+                  disabled={!comment.trim() || sendingComment}
+                >
                   {sendingComment ? (
                     <Loader2 className="mr-2 h-3 w-3 animate-spin" />
                   ) : (

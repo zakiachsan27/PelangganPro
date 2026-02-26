@@ -173,7 +173,7 @@ export const contactsColumns: ColumnDef<Contact>[] = [
     ),
     cell: ({ row }) => (
       <span className="text-sm font-medium">
-        {row.original.lifetime_value > 0
+        {row.original.lifetime_value && row.original.lifetime_value > 0
           ? formatCurrency(row.original.lifetime_value)
           : "-"}
       </span>

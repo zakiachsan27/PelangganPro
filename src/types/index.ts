@@ -87,6 +87,9 @@ export interface Contact {
   company_id: string | null;
   first_name: string;
   last_name: string | null;
+  // Computed fields
+  lifetime_value?: number;
+  pipeline_status?: string;
   email: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -97,7 +100,6 @@ export interface Contact {
   avatar_url: string | null;
   owner_id: string | null;
   created_by: string | null;
-  lifetime_value: number;
   created_at: string;
   updated_at: string;
   // Joined
@@ -170,6 +172,9 @@ export interface Note {
   updated_at: string;
   // Joined
   author?: Profile;
+  contact?: Contact;
+  company?: Company;
+  deal?: Deal;
 }
 
 // --- Activities ---
