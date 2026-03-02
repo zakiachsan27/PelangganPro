@@ -1,5 +1,7 @@
 import { createSupabaseServiceClient } from "@/lib/supabase/service";
-import { processSimpleMessage } from "./simple-agent";
+import { createAgent, AgentLoop, AgentMessage } from "./agent-loop";
+// Import tools to register them
+import "./tools";
 
 export interface ProcessMessageOptions {
   message: string;
@@ -20,37 +22,54 @@ export interface ProcessMessageResult {
 }
 
 /**
- * Process message using SIMPLE agent
- * - No loops, no chains
- * - Direct tool matching
- * - 1 question = 1 tool = 1 answer
+ * Process message using LLM-powered Agent Loop
+ * - Uses DeepSeek for intent detection
+ * - Uses tools to query CRM data
+ * - Full agent loop with tool execution
  */
 export async function processMessage(
   options: ProcessMessageOptions
 ): Promise<ProcessMessageResult> {
-  const { message, sessionId, userId, orgId } = options;
+  const { message, sessionId, userId, orgId, conversationHistory } = options;
   
-  console.log(`[AgentService] Processing: "${message}"`);
+  console.log(`[AgentService] Processing with LLM Agent: "${message}"`);
   
   const supabase = await createSupabaseServiceClient();
   
   try {
-    // Process with simple agent (no LLM for tool selection)
-    const reply = await processSimpleMessage(message, {
-      orgId,
-      userId,
-      sessionId,
-    });
+    // Create agent with DeepSeek + tools
+    const agent = createAgent();
     
-    console.log(`[AgentService] Completed: Simple agent finished`);
+    // Convert conversation history to agent format
+    const history: AgentMessage[] = (conversationHistory || []).map((msg: any) => ({
+      role: msg.role as "user" | "assistant" | "system",
+      content: msg.content,
+    }));
+    
+    // Process message through agent loop
+    const response = await agent.processMessage(
+      message,
+      { orgId, userId, sessionId },
+      history
+    );
+    
+    console.log(`[AgentService] Completed: ${response.iterations} iterations, completed: ${response.completed}`);
     
     // Save to database
     await supabase.from("agent_conversations").insert([
       { org_id: orgId, user_id: userId, session_id: sessionId, role: "user", content: message },
-      { org_id: orgId, user_id: userId, session_id: sessionId, role: "assistant", content: reply },
+      { org_id: orgId, user_id: userId, session_id: sessionId, role: "assistant", content: response.content },
     ]);
     
-    return { reply, toolResults: [], sessionId };
+    return { 
+      reply: response.content, 
+      toolResults: response.toolResults.map(tr => ({
+        success: !tr.isError,
+        forUser: tr.forUser || "",
+        data: tr.data,
+      })), 
+      sessionId 
+    };
     
   } catch (error: any) {
     console.error("[AgentService] Error:", error);

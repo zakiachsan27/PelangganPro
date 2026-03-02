@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { Tool, ToolContext, ToolResult, successResult, errorResult } from "./types";
 
 // Tool: Get tickets by contact
@@ -13,7 +13,7 @@ export const getContactTicketsTool: Tool = {
   }),
   execute: async (args: { contact_name?: string; phone?: string; status?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact first
       let contactQuery = supabase
@@ -98,7 +98,7 @@ export const getContactDealsTool: Tool = {
   }),
   execute: async (args: { contact_name?: string; phone?: string; status?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact first
       let contactQuery = supabase
@@ -196,7 +196,7 @@ export const getContactNotesTool: Tool = {
   }),
   execute: async (args: { contact_name?: string; phone?: string; limit?: number }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact first
       let contactQuery = supabase
@@ -291,7 +291,7 @@ export const getContactTasksTool: Tool = {
   }),
   execute: async (args: { contact_name?: string; phone?: string; status?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact first
       let contactQuery = supabase
@@ -377,7 +377,7 @@ export const listTicketsTool: Tool = {
   }),
   execute: async (args: { status?: string; priority?: string; limit?: number }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       let query = supabase
         .from("tickets")
@@ -460,7 +460,7 @@ export const listDealsTool: Tool = {
   }),
   execute: async (args: { status?: string; limit?: number }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       let query = supabase
         .from("deals")
@@ -541,7 +541,7 @@ export const getRecentActivitiesTool: Tool = {
   }),
   execute: async (args: { entity_type?: string; limit?: number }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Get activities without FK join to avoid schema issues
       let query = supabase
@@ -624,7 +624,7 @@ export const searchTasksByContactTool: Tool = {
   }),
   execute: async (args: { contact_name: string; status?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Search contact by name (flexible search)
       const { data: contacts, error: contactError } = await supabase
@@ -703,7 +703,7 @@ export const searchContactsTool: Tool = {
   }),
   execute: async (args: { name: string; limit?: number }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       const { data: contacts, error } = await supabase
         .from("contacts")

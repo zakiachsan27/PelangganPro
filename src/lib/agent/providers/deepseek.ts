@@ -1,7 +1,7 @@
 import { LLMProvider, Message, LLMResponse, ToolCall } from "./types";
 import { ToolDefinition } from "../tools/types";
 
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "";
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || "sk-f9c8729669814ce387a9a445d4fba08f";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 
 // System prompt for the agent

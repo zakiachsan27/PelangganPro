@@ -8,7 +8,8 @@
  */
 
 import { DeepSeekProvider } from "./providers/deepseek";
-import { getToolRegistry } from "./tools/registry";
+import { getToolRegistry, ToolRegistry } from "./tools/registry";
+import { ToolCall as ToolCallType } from "./tools/types";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 interface AgentConfig {
@@ -23,14 +24,6 @@ interface AgentContext {
   sessionId: string;
 }
 
-interface ToolCall {
-  id: string;
-  function: {
-    name: string;
-    arguments: string;
-  };
-}
-
 interface ToolResult {
   tool_call_id: string;
   content: string;
@@ -38,7 +31,7 @@ interface ToolResult {
 
 export class PicoClawAgent {
   private provider = new DeepSeekProvider();
-  private registry = getToolRegistry();
+  private registry: ToolRegistry;
   private config: Required<AgentConfig>;
 
   constructor(config: AgentConfig = {}) {
@@ -47,6 +40,7 @@ export class PicoClawAgent {
       toolTimeoutMs: config.toolTimeoutMs || 15000,
       temperature: config.temperature || 0.2, // Low temp untuk less hallucination
     };
+    this.registry = getToolRegistry();
   }
 
   /**
@@ -98,7 +92,7 @@ JANGAN HALLUCINATE. JANGAN TAMBAH DATA SENDIRI.`;
         messages.push({
           role: "assistant",
           content: response.content || "",
-          tool_calls: response.toolCalls.map((tc: ToolCall) => ({
+          tool_calls: response.toolCalls.map((tc: ToolCallType) => ({
             id: tc.id,
             type: "function",
             function: tc.function,
@@ -125,7 +119,7 @@ JANGAN HALLUCINATE. JANGAN TAMBAH DATA SENDIRI.`;
     return "Maaf, proses terlalu kompleks. Silakan coba pertanyaan yang lebih spesifik.";
   }
 
-  private async executeTool(toolCall: ToolCall, context: AgentContext): Promise<string> {
+  private async executeTool(toolCall: ToolCallType, context: AgentContext): Promise<string> {
     try {
       const result = await this.registry.execute(toolCall, {
         orgId: context.orgId,

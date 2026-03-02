@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { Tool, ToolContext, ToolResult, successResult, errorResult, progressResult } from "./types";
 
 // Tool: Count entities (contacts, deals, tickets, tasks)
@@ -13,7 +13,7 @@ export const countEntitiesTool: Tool = {
   }),
   execute: async (args: { entity_type: string; filter?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       let query = supabase
         .from(args.entity_type)
@@ -71,7 +71,7 @@ export const queryContactTool: Tool = {
   }),
   execute: async (args: { phone?: string; name?: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       let query = supabase
         .from("contacts")
@@ -127,7 +127,7 @@ export const createNoteTool: Tool = {
   }),
   execute: async (args: { contact_phone?: string; contact_name?: string; content: string }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact
       let contactQuery = supabase
@@ -158,7 +158,7 @@ export const createNoteTool: Tool = {
           org_id: context.orgId,
           contact_id: contact.id,
           content: args.content,
-          created_by: context.userId,
+          author_id: context.userId,
         })
         .select()
         .single();
@@ -202,7 +202,7 @@ export const createTaskTool: Tool = {
     priority: string;
   }, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Find contact if phone provided
       let contactId = null;
@@ -266,7 +266,7 @@ export const getPipelineSummaryTool: Tool = {
   parameters: z.object({}),
   execute: async (_args: {}, context: ToolContext): Promise<ToolResult> => {
     try {
-      const supabase = await createSupabaseServerClient();
+      const supabase = await createSupabaseServiceClient();
       
       // Get all deals with their values
       const { data: deals, error } = await supabase
@@ -295,11 +295,86 @@ export const getPipelineSummaryTool: Tool = {
   },
 };
 
+// Tool: Create ticket
+export const createTicketTool: Tool = {
+  name: "create_ticket",
+  description: "Membuat ticket baru untuk kontak tertentu. Wajib parameter 'title' untuk judul ticket dan 'description' untuk deskripsi. Opsional 'contact_phone' atau 'contact_name', 'category', 'priority'.",
+  parameters: z.object({
+    title: z.string().describe("Judul ticket (wajib). Contoh: 'Website error di halaman kontak'"),
+    description: z.string().describe("Deskripsi detail ticket (wajib). Contoh: 'User无法访问网站，显示500错误'"),
+    contact_phone: z.string().optional().describe("Nomor telepon kontak lengkap (contoh: '628452318312')"),
+    contact_name: z.string().optional().describe("Nama kontak (contoh: 'Budi Santoso')"),
+    category: z.enum(["bug", "feature_request", "pertanyaan", "keluhan_pelanggan", "internal"]).optional().describe("Kategori ticket. Default: 'pertanyaan'"),
+    priority: z.enum(["low", "medium", "high", "urgent"]).optional().describe("Prioritas ticket. Default: 'medium'"),
+  }),
+  execute: async (args: {
+    title: string;
+    description: string;
+    contact_phone?: string;
+    contact_name?: string;
+    category?: string;
+    priority?: string;
+  }, context: ToolContext): Promise<ToolResult> => {
+    try {
+      const supabase = await createSupabaseServiceClient();
+      
+      // Find contact if provided
+      let contactId = null;
+      if (args.contact_phone || args.contact_name) {
+        let contactQuery = supabase.from("contacts").select("id, first_name, last_name").eq("org_id", context.orgId);
+        
+        if (args.contact_phone) {
+          contactQuery = contactQuery.eq("phone", args.contact_phone);
+        } else if (args.contact_name) {
+          contactQuery = contactQuery.or(`first_name.ilike.%${args.contact_name}%,last_name.ilike.%${args.contact_name}%`);
+        }
+        
+        const { data: contacts } = await contactQuery.limit(1);
+        if (contacts && contacts.length > 0) {
+          contactId = contacts[0].id;
+        }
+      }
+      
+      // Create ticket
+      const { data: ticket, error: ticketError } = await supabase
+        .from("tickets")
+        .insert({
+          org_id: context.orgId,
+          title: args.title,
+          description: args.description,
+          category: args.category || "pertanyaan",
+          priority: args.priority || "medium",
+          status: "open",
+          contact_id: contactId,
+          reporter_id: context.userId,
+        })
+        .select()
+        .single();
+      
+      if (ticketError) {
+        console.error("[createTicketTool] Error:", ticketError);
+        return errorResult(`Gagal membuat ticket: ${ticketError.message}`);
+      }
+      
+      return successResult(
+        `Ticket berhasil dibuat: ${args.title}`,
+        `✅ Ticket berhasil dibuat!\n\n**${args.title}**\nKategori: ${args.category || 'pertanyaan'}\nPrioritas: ${args.priority || 'medium'}`,
+        { ticket }
+      );
+      
+    } catch (error: any) {
+      console.error("[createTicketTool] Exception:", error);
+      return errorResult(error.message || "Terjadi kesalahan");
+    }
+  },
+};
+
 // Export all tools
 export const allTools = [
   countEntitiesTool,
   queryContactTool,
   createNoteTool,
   createTaskTool,
+  createTicketTool,
   getPipelineSummaryTool,
 ];
