@@ -451,6 +451,7 @@ export interface Ticket {
   assignee_id: string | null;
   contact_id: string | null;
   reporter_id: string;
+  image_url: string | null;
   resolved_at: string | null;
   closed_at: string | null;
   created_at: string;
@@ -469,4 +470,128 @@ export interface TicketComment {
   created_at: string;
   // Joined
   author?: Profile;
+}
+
+// --- Contact Groups ---
+export interface ContactGroup {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string | null;
+  contact_count: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  members?: Contact[];
+  created_by_profile?: Profile;
+}
+
+export interface ContactGroupMember {
+  group_id: string;
+  contact_id: string;
+  added_at: string;
+  added_by: string | null;
+  // Joined
+  contact?: Contact;
+}
+
+// --- Message Scheduler ---
+export type SchedulerStatus = "pending" | "sending" | "paused" | "completed" | "failed";
+export type SchedulerTargetType = "contacts" | "group";
+
+export interface MessageScheduler {
+  id: string;
+  org_id: string;
+  name: string;
+  message: string;
+  target_type: SchedulerTargetType;
+  target_contacts: string[];
+  target_group_id: string | null;
+  status: SchedulerStatus;
+  interval_seconds: number;
+  min_interval: number | null;
+  max_interval: number | null;
+  sent_count: number;
+  total_count: number;
+  failed_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  waha_session: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  target_group?: ContactGroup;
+  created_by_profile?: Profile;
+}
+
+export type SchedulerLogStatus = "pending" | "sent" | "failed" | "retrying";
+
+export interface MessageSchedulerLog {
+  id: string;
+  scheduler_id: string;
+  contact_id: string | null;
+  phone: string;
+  message: string;
+  status: SchedulerLogStatus;
+  error_message: string | null;
+  waha_response: Record<string, unknown> | null;
+  sent_at: string | null;
+  retry_count: number;
+  created_at: string;
+  // Joined
+  contact?: Contact;
+  scheduler?: MessageScheduler;
+}
+
+// --- Documents ---
+export type DocumentType = "product_plan" | "penawaran" | "invoice" | "struk" | "custom";
+
+export interface DocumentTemplate {
+  id: string;
+  org_id: string;
+  name: string;
+  type: DocumentType;
+  description: string | null;
+  ref_file_url: string | null;
+  ref_file_name: string | null;
+  html_template: string;
+  css_styles: string;
+  form_schema: FormSchema;
+  is_default: boolean;
+  is_active: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GeneratedDocument {
+  id: string;
+  org_id: string;
+  template_id: string | null;
+  title: string;
+  data: Record<string, any>;
+  pdf_url: string | null;
+  docx_url: string | null;
+  file_name: string | null;
+  status: "draft" | "generated";
+  contact_id: string | null;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  template?: DocumentTemplate;
+}
+
+export interface FormSchema {
+  fields: FormField[];
+}
+
+export interface FormField {
+  name: string;
+  label: string;
+  type: "text" | "number" | "date" | "select" | "textarea" | "repeater" | "contact";
+  required?: boolean;
+  options?: { label: string; value: string }[];
+  fields?: FormField[];
 }

@@ -70,6 +70,8 @@ export async function GET() {
     allDeals,
     tasksDueToday,
     overdueTasks,
+    openTickets,
+    todayActivities,
   ] = await Promise.all([
     // Total contacts count
     supabase
@@ -105,6 +107,21 @@ export async function GET() {
       .eq("org_id", orgId)
       .lt("due_date", today)
       .not("status", "in", "(done,cancelled)"),
+
+    // Open tickets (status = 'open' or 'in_progress')
+    supabase
+      .from("tickets")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .in("status", ["open", "in_progress"]),
+
+    // Today's activities
+    supabase
+      .from("activities")
+      .select("id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .gte("created_at", today + "T00:00:00")
+      .lte("created_at", today + "T23:59:59"),
   ]);
 
   // Filter deals based on stage
@@ -167,6 +184,8 @@ export async function GET() {
     wonValue: wonThisMonthValue,
     tasksDueToday: tasksDueToday.count ?? 0,
     overdueTasks: overdueTasks.count ?? 0,
+    openTickets: openTickets.count ?? 0,
+    todayActivities: todayActivities.count ?? 0,
   });
   
   // Disable caching

@@ -9,7 +9,8 @@ import type {
   TicketInfo,
   CreateTicketRequest,
   TaskInfo,
-  PipelineInfo
+  PipelineInfo,
+  MessageScheduler
 } from '../types';
 
 const API_BASE_URL = 'http://localhost:3000';
@@ -264,9 +265,51 @@ class CRMClient {
   }
 
   async createTicket(data: CreateTicketRequest): Promise<TicketInfo> {
+    const token = await authStorage.getValidToken();
+    
+    if (!token) {
+      throw new CRMClientError('Sesi habis. Silakan login ulang.', 'NOT_AUTHENTICATED', 401, false);
+    }
+    
+    const url = `${API_BASE_URL}/api/extension/tickets`;
+    
+    // Create FormData if there's an image file
+    if (data.imageFile) {
+      const formData = new FormData();
+      formData.append('contactId', data.contactId);
+      formData.append('title', data.title);
+      formData.append('description', data.description);
+      formData.append('category', data.category);
+      formData.append('priority', data.priority);
+      formData.append('image', data.imageFile);
+      
+      // Don't set Content-Type for FormData - browser will set it with boundary
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new CRMClientError(errorText || 'Failed to create ticket', 'HTTP_ERROR', response.status, false);
+      }
+
+      return (await response.json()).data;
+    }
+    
+    // Regular JSON request without image
     const response = await this.fetch<{ data: TicketInfo }>('/tickets', {
       method: 'POST',
-      body: JSON.stringify(data)
+      body: JSON.stringify({
+        contactId: data.contactId,
+        title: data.title,
+        description: data.description,
+        category: data.category,
+        priority: data.priority
+      })
     });
     return response.data;
   }
@@ -317,6 +360,16 @@ class CRMClient {
     } catch (err) {
       console.error('[CRMClient] Create deal error:', err);
       throw err;
+    }
+  }
+
+  async getSchedulers(): Promise<MessageScheduler[]> {
+    try {
+      const response = await this.fetch<{ data: MessageScheduler[] }>('/scheduler');
+      return response.data || [];
+    } catch (err) {
+      console.error('[CRMClient] Failed to get schedulers:', err);
+      return [];
     }
   }
 }

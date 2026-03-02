@@ -13,6 +13,7 @@ export const contactSchema = z.object({
   owner_id: z.string().optional(),
   city: z.string().optional(),
   tag_ids: z.array(z.string()).optional(),
+  group_ids: z.array(z.string()).optional(),
 });
 
 export type ContactFormValues = z.infer<typeof contactSchema>;

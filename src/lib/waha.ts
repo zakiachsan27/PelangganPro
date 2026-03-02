@@ -148,3 +148,47 @@ export async function sendSeen(chatId: string) {
     body: JSON.stringify({ session: WAHA_SESSION, chatId }),
   });
 }
+
+// --- Scheduler Integration ---
+
+/** Send a text message via WAHA for scheduler
+ * @param sessionName - The WAHA session name to use
+ * @param phone - Phone number to send to (will be formatted as chatId)
+ * @param text - Message text
+ * @returns { success: boolean, data?: any, error?: string }
+ */
+export async function sendWahaMessage(
+  sessionName: string,
+  phone: string,
+  text: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    // Format phone number to chatId
+    const chatId = phone.includes("@") ? phone : `${phone.replace(/\D/g, "")}@c.us`;
+    
+    const res = await wahaFetch("/api/sendText", {
+      method: "POST",
+      body: JSON.stringify({ 
+        session: sessionName, 
+        chatId, 
+        text 
+      }),
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      return { 
+        success: false, 
+        error: `WAHA Error ${res.status}: ${errorText}` 
+      };
+    }
+
+    const data = await res.json();
+    return { success: true, data };
+  } catch (error: any) {
+    return { 
+      success: false, 
+      error: error.message || "Unknown error sending message" 
+    };
+  }
+}

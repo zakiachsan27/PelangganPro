@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload, X, ImageIcon } from "lucide-react";
 import { ticketSchema, type TicketFormValues } from "@/lib/validations";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
@@ -50,6 +50,11 @@ export function TicketForm({ open, onOpenChange, ticket, onSuccess }: TicketForm
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState<Profile[]>([]);
   const [contacts, setContacts] = useState<Contact[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(ticket?.image_url || null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
   useEffect(() => {
     if (!open) return;
@@ -94,16 +99,98 @@ export function TicketForm({ open, onOpenChange, ticket, onSuccess }: TicketForm
     },
   });
 
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error("Ukuran file maksimal 2MB");
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Hanya file gambar yang diperbolehkan");
+      return;
+    }
+
+    setSelectedFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveImage = () => {
+    setSelectedFile(null);
+    setImagePreview(null);
+  };
+
+  const uploadImage = async (file: File): Promise<string | null> => {
+    try {
+      setUploadingImage(true);
+      const supabase = createSupabaseBrowserClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Unauthorized");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("org_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.org_id) throw new Error("Organization not found");
+
+      const fileExt = file.name.split(".").pop() || "png";
+      const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `ticket-attachments/${profile.org_id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("crm-media")
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from("crm-media")
+        .getPublicUrl(filePath);
+
+      return urlData.publicUrl;
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error("Gagal mengupload gambar");
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   async function onSubmit(data: TicketFormValues) {
     try {
       setSubmitting(true);
+      let imageUrl = ticket?.image_url || null;
+
+      // Upload new image if selected
+      if (selectedFile) {
+        const uploadedUrl = await uploadImage(selectedFile);
+        if (uploadedUrl) {
+          imageUrl = uploadedUrl;
+        }
+      }
+
       const url = isEdit ? `/api/tickets/${ticket!.id}` : "/api/tickets";
       const method = isEdit ? "PATCH" : "POST";
 
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          image_url: imageUrl,
+        }),
       });
 
       if (!res.ok) {
@@ -114,6 +201,8 @@ export function TicketForm({ open, onOpenChange, ticket, onSuccess }: TicketForm
       toast.success(isEdit ? "Ticket berhasil diupdate" : "Ticket berhasil ditambahkan");
       onOpenChange(false);
       form.reset();
+      setSelectedFile(null);
+      setImagePreview(null);
       onSuccess?.();
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan ticket");
@@ -157,6 +246,43 @@ export function TicketForm({ open, onOpenChange, ticket, onSuccess }: TicketForm
                 </FormItem>
               )}
             />
+
+            {/* Image Upload */}
+            <div className="space-y-2">
+              <FormLabel>Lampiran Gambar</FormLabel>
+              {imagePreview ? (
+                <div className="relative group">
+                  <img
+                    src={imagePreview}
+                    alt="Preview"
+                    className="max-h-[150px] rounded-lg border border-slate-200 object-contain"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-sm"
+                    disabled={uploadingImage}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <label className="flex flex-col items-center justify-center w-full h-20 border-2 border-dashed border-slate-300 rounded-lg cursor-pointer bg-slate-50 hover:bg-slate-100 transition-colors">
+                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                    <Upload className="h-5 w-5 text-slate-400 mb-1" />
+                    <p className="text-xs text-slate-500">Klik untuk upload gambar</p>
+                    <p className="text-[10px] text-slate-400">Max 2MB</p>
+                  </div>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    disabled={uploadingImage}
+                  />
+                </label>
+              )}
+            </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -281,9 +407,9 @@ export function TicketForm({ open, onOpenChange, ticket, onSuccess }: TicketForm
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 Batal
               </Button>
-              <Button type="submit" disabled={submitting}>
-                {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {isEdit ? "Update" : "Tambah"} Ticket
+              <Button type="submit" disabled={submitting || uploadingImage}>
+                {(submitting || uploadingImage) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {uploadingImage ? "Mengupload..." : isEdit ? "Update" : "Tambah"} Ticket
               </Button>
             </div>
           </form>

@@ -13,7 +13,9 @@ import {
   MessageSquare, 
   Send,
   Loader2,
-  AlertTriangle
+  AlertTriangle,
+  Image as ImageIcon,
+  ExternalLink
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -225,6 +227,36 @@ export default function TicketDetailPage() {
               </p>
             </CardContent>
           </Card>
+
+          {/* Attachment */}
+          {ticket.image_url && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" />
+                  Lampiran
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="relative group">
+                  <img 
+                    src={ticket.image_url} 
+                    alt="Lampiran ticket" 
+                    className="max-h-[300px] rounded-lg border border-slate-200 object-contain"
+                  />
+                  <a 
+                    href={ticket.image_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="absolute top-2 right-2 bg-white/90 hover:bg-white text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Lihat Penuh
+                  </a>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Comments */}
           <Card>

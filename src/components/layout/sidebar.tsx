@@ -55,66 +55,70 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       </div>
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 px-3 py-3">
-        {filteredSections.map((section, sectionIdx) => (
-          <div key={section.label ?? "top"}>
-            {/* Section label */}
-            {section.label && !collapsed && (
-              <p className={cn(
-                "px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40",
-                "mt-2"
-              )}>
-                {section.label}
-              </p>
-            )}
-            {sectionIdx > 0 && collapsed && (
-              <Separator className="my-2" />
-            )}
-            {sectionIdx > 0 && !collapsed && !section.label && (
-              <Separator className="my-2" />
-            )}
+      <div className="flex-1 overflow-hidden relative">
+        <ScrollArea className="h-full px-3 py-3">
+          <div className="pb-4">
+            {filteredSections.map((section, sectionIdx) => (
+              <div key={section.label ?? "top"}>
+                {/* Section label */}
+                {section.label && !collapsed && (
+                  <p className={cn(
+                    "px-3 mb-1 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/40",
+                    "mt-2"
+                  )}>
+                    {section.label}
+                  </p>
+                )}
+                {sectionIdx > 0 && collapsed && (
+                  <Separator className="my-2" />
+                )}
+                {sectionIdx > 0 && !collapsed && !section.label && (
+                  <Separator className="my-2" />
+                )}
 
-            <nav className="flex flex-col gap-0.5 mb-1">
-              {section.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <div className="relative flex items-center">
-                      {isActive && (
-                        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-sidebar-primary" />
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                          "w-full justify-start gap-3 h-8 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                          collapsed && "justify-center px-2",
-                          isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
-                          !isActive && "text-sidebar-foreground/60"
-                        )}
-                        title={collapsed ? item.title : undefined}
-                      >
-                        <item.icon className={cn("h-4 w-4 shrink-0", isActive && "text-sidebar-primary")} />
-                        {!collapsed && <span className="text-sm truncate">{item.title}</span>}
-                        {!collapsed && item.href === "/messaging" && 0 > 0 && (
-                          <span className="ml-auto inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground min-w-[18px]">
-                            {0}
-                          </span>
-                        )}
-                      </Button>
-                      {collapsed && item.href === "/messaging" && 0 > 0 && (
-                        <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </nav>
+                <nav className="flex flex-col gap-0.5 mb-1">
+                  {section.items.map((item) => {
+                    const isActive =
+                      pathname === item.href ||
+                      (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                    return (
+                      <Link key={item.href} href={item.href}>
+                        <div className="relative flex items-center">
+                          {isActive && (
+                            <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-sidebar-primary" />
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn(
+                              "w-full justify-start gap-3 h-8 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                              collapsed && "justify-center px-2",
+                              isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+                              !isActive && "text-sidebar-foreground/60"
+                            )}
+                            title={collapsed ? item.title : undefined}
+                          >
+                            <item.icon className={cn("h-4 w-4 shrink-0", isActive && "text-sidebar-primary")} />
+                            {!collapsed && <span className="text-sm truncate">{item.title}</span>}
+                            {!collapsed && item.href === "/messaging" && 0 > 0 && (
+                              <span className="ml-auto inline-flex items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground min-w-[18px]">
+                                {0}
+                              </span>
+                            )}
+                          </Button>
+                          {collapsed && item.href === "/messaging" && 0 > 0 && (
+                            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary" />
+                          )}
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </nav>
+              </div>
+            ))}
           </div>
-        ))}
-      </ScrollArea>
+        </ScrollArea>
+      </div>
 
       {/* Bottom: Activity Log + Settings side by side, then collapse */}
       <div className="border-t border-sidebar-border px-3 py-2 space-y-1">

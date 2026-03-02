@@ -5,7 +5,8 @@ const TICKET_SELECT = `
   *,
   assignee:profiles!tickets_assignee_id_fkey(id, full_name, avatar_url),
   reporter:profiles!tickets_reporter_id_fkey(id, full_name, avatar_url),
-  contact:contacts(id, first_name, last_name)
+  contact:contacts(id, first_name, last_name),
+  image_url
 `;
 
 // GET /api/tickets — List tickets with filters, search, pagination
@@ -13,6 +14,16 @@ export async function GET(req: NextRequest) {
   const supabase = await createSupabaseServerClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Get user's org_id
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("org_id")
+    .eq("id", user.id)
+    .single();
+  
+  if (!profile) return NextResponse.json({ error: "Profile not found" }, { status: 404 });
+  const orgId = profile.org_id;
 
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search");
@@ -28,7 +39,8 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("tickets")
-    .select(TICKET_SELECT, { count: "exact" });
+    .select(TICKET_SELECT, { count: "exact" })
+    .eq("org_id", orgId);
 
   if (search) {
     query = query.ilike("title", `%${search}%`);
@@ -87,6 +99,7 @@ export async function POST(req: NextRequest) {
       status: body.status,
       assignee_id: body.assignee_id,
       contact_id: body.contact_id,
+      image_url: body.image_url || null,
     })
     .select(TICKET_SELECT)
     .single();

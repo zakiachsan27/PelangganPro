@@ -99,7 +99,7 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Tasks" description="Kelola semua tugas tim Anda">
+      <PageHeader title="Reminder" description="Kelola semua tugas tim Anda">
         <Button onClick={() => setFormOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           Tambah Task

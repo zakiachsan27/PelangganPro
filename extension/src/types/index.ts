@@ -133,6 +133,7 @@ export interface TicketInfo {
   status: TicketStatus;
   assigneeName: string | null;
   createdAt: string;
+  imageUrl?: string | null;
 }
 
 export interface CreateTicketRequest {
@@ -141,4 +142,19 @@ export interface CreateTicketRequest {
   description: string;
   category: TicketCategory;
   priority: TicketPriority;
+  imageFile?: File;
+}
+
+// --- Scheduler ---
+export type SchedulerStatus = 'pending' | 'sending' | 'paused' | 'completed' | 'failed';
+
+export interface MessageScheduler {
+  id: string;
+  name: string;
+  message: string;
+  status: SchedulerStatus;
+  sent_count: number;
+  total_count: number;
+  interval_seconds: number;
+  created_at: string;
 }

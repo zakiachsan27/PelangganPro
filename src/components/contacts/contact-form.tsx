@@ -12,7 +12,7 @@ import { TagPicker } from "@/components/tags/tag-picker";
 import { contactSchema, type ContactFormValues } from "@/lib/validations";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type { Contact, Company, Profile } from "@/types";
+import type { Contact, Company, Profile, ContactGroup } from "@/types";
 
 interface ContactFormProps {
   open: boolean;
@@ -42,6 +42,8 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
   const isEdit = !!contact;
   const [companies, setCompanies] = useState<Company[]>([]);
   const [users, setUsers] = useState<Profile[]>([]);
+  const [groups, setGroups] = useState<ContactGroup[]>([]);
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
 
   const form = useForm<ContactFormValues>({
     resolver: zodResolver(contactSchema),
@@ -58,6 +60,7 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
       owner_id: contact?.owner_id || "",
       city: "",
       tag_ids: contact?.tags?.map((t) => t.id) || [],
+      group_ids: [],
     },
   });
 
@@ -75,8 +78,26 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
         .from("profiles")
         .select("id, full_name")
         .then(({ data }) => setUsers((data as Profile[]) || []));
+
+      // Fetch contact groups
+      fetch("/api/contact-groups")
+        .then((r) => r.json())
+        .then((j) => setGroups(j.data || []))
+        .catch(() => setGroups([]));
+
+      // If editing, fetch contact's groups
+      if (contact?.id) {
+        fetch(`/api/contacts/${contact.id}/groups`)
+          .then((r) => r.json())
+          .then((j) => {
+            const groupIds = j.data?.map((g: any) => g.group_id) || [];
+            setSelectedGroups(groupIds);
+            form.setValue("group_ids", groupIds);
+          })
+          .catch(() => setSelectedGroups([]));
+      }
     }
-  }, [open]);
+  }, [open, contact?.id]);
 
   async function onSubmit(data: ContactFormValues) {
     try {
@@ -91,9 +112,23 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
         const err = await res.json().catch(() => ({ error: "Unknown error" }));
         throw new Error(err.error || `HTTP ${res.status}`);
       }
+      
+      const result = await res.json();
+      const contactId = result.id || contact?.id;
+      
+      // Assign contact to groups
+      if (contactId && data.group_ids && data.group_ids.length > 0) {
+        await fetch(`/api/contacts/${contactId}/groups`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ group_ids: data.group_ids }),
+        });
+      }
+      
       toast.success(isEdit ? "Contact berhasil diupdate" : "Contact berhasil ditambahkan");
       onOpenChange(false);
       form.reset();
+      setSelectedGroups([]);
       onSuccess?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Gagal menyimpan contact");
@@ -306,6 +341,48 @@ export function ContactForm({ open, onOpenChange, contact, onSuccess }: ContactF
                       selectedTagIds={field.value || []}
                       onChange={field.onChange}
                     />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="group_ids"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Grup Kontak</FormLabel>
+                  <FormControl>
+                    <div className="border rounded-lg p-3 max-h-[150px] overflow-y-auto">
+                      {groups.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Belum ada grup</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {groups.map((group) => (
+                            <div key={group.id} className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                id={`group-${group.id}`}
+                                checked={field.value?.includes(group.id)}
+                                onChange={(e) => {
+                                  const current = field.value || [];
+                                  if (e.target.checked) {
+                                    field.onChange([...current, group.id]);
+                                  } else {
+                                    field.onChange(current.filter((id) => id !== group.id));
+                                  }
+                                }}
+                                className="rounded border-gray-300"
+                              />
+                              <label htmlFor={`group-${group.id}`} className="text-sm">
+                                {group.name}
+                              </label>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </FormControl>
                   <FormMessage />
                 </FormItem>

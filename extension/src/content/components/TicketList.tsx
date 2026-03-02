@@ -79,6 +79,61 @@ const styles = {
     gap: '8px',
     marginTop: '8px',
   },
+  imageUploadArea: {
+    display: 'block',
+    border: '1.5px dashed #c4c4c4',
+    borderRadius: '6px',
+    padding: '8px 10px',
+    textAlign: 'center' as const,
+    backgroundColor: '#f9fafb',
+    marginBottom: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  imageUploadAreaHover: {
+    borderColor: '#4f46e5',
+    backgroundColor: '#eef2ff',
+  },
+  imageUploadText: {
+    fontSize: '11px',
+    color: '#6b7280',
+    marginBottom: '2px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4px',
+  },
+  imageUploadHint: {
+    fontSize: '10px',
+    color: '#9ca3af',
+  },
+  imagePreviewContainer: {
+    position: 'relative' as const,
+    display: 'inline-block',
+    marginBottom: '12px',
+  },
+  imagePreview: {
+    maxWidth: '100%',
+    maxHeight: '150px',
+    borderRadius: '8px',
+    border: '1px solid #e5e7eb',
+  },
+  imageRemoveButton: {
+    position: 'absolute' as const,
+    top: '-8px',
+    right: '-8px',
+    backgroundColor: '#ef4444',
+    color: '#ffffff',
+    border: 'none',
+    borderRadius: '50%',
+    width: '20px',
+    height: '20px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   buttonPrimary: {
     padding: '6px 14px',
     borderRadius: '6px',
@@ -147,6 +202,16 @@ const styles = {
     fontSize: '11px',
     color: '#9ca3af',
     flexWrap: 'wrap' as const,
+    alignItems: 'center',
+  },
+  attachmentLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '3px',
+    color: '#4f46e5',
+    fontSize: '10px',
+    cursor: 'pointer',
+    textDecoration: 'none',
   },
   badge: {
     padding: '2px 6px',
@@ -197,6 +262,8 @@ export function TicketList({ contactId }: TicketListProps) {
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<TicketCategory>('pertanyaan');
   const [priority, setPriority] = useState<TicketPriority>('medium');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     if (contactId) {
@@ -208,12 +275,65 @@ export function TicketList({ contactId }: TicketListProps) {
     setLoading(true);
     try {
       const data = await crmClient.getTickets(contactId);
-      setTickets(data);
+      // Filter hanya tampilkan status: open, in_progress, waiting
+      const filteredData = data.filter((ticket) =>
+        ['open', 'in_progress', 'waiting'].includes(ticket.status)
+      );
+      setTickets(filteredData);
     } catch (err) {
       console.error('Failed to load tickets:', err);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Image upload handlers
+  const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+
+  const handleImageSelect = (file: File) => {
+    if (file.size > MAX_FILE_SIZE) {
+      alert('Ukuran file maksimal 2MB');
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      alert('Hanya file gambar yang diperbolehkan');
+      return;
+    }
+    setImageFile(file);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleFileInputChange = (e: Event) => {
+    const input = e.target as HTMLInputElement;
+    if (input.files && input.files[0]) {
+      handleImageSelect(input.files[0]);
+    }
+  };
+
+  const handlePaste = (e: ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) {
+          handleImageSelect(blob);
+        }
+        break;
+      }
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
   };
 
   const handleSubmit = async (e: Event) => {
@@ -228,11 +348,14 @@ export function TicketList({ contactId }: TicketListProps) {
         description: description.trim(),
         category,
         priority,
+        imageFile: imageFile || undefined,
       });
       setTitle('');
       setDescription('');
       setCategory('pertanyaan');
       setPriority('medium');
+      setImageFile(null);
+      setImagePreview(null);
       setIsAdding(false);
       loadTickets();
     } catch (err) {
@@ -274,9 +397,10 @@ export function TicketList({ contactId }: TicketListProps) {
           />
           <textarea
             style={styles.textarea}
-            placeholder="Deskripsi ticket..."
+            placeholder="Deskripsi ticket... (Ctrl+V untuk paste gambar)"
             value={description}
             onChange={(e) => setDescription((e.target as HTMLTextAreaElement).value)}
+            onPaste={handlePaste}
             disabled={isSubmitting}
             required
           />
@@ -303,6 +427,38 @@ export function TicketList({ contactId }: TicketListProps) {
             <option value="high">High Priority</option>
             <option value="urgent">Urgent</option>
           </select>
+          
+          {/* Image Upload Area */}
+          {imagePreview ? (
+            <div style={styles.imagePreviewContainer}>
+              <img src={imagePreview} alt="Preview" style={styles.imagePreview} />
+              <button
+                type="button"
+                style={styles.imageRemoveButton}
+                onClick={removeImage}
+                disabled={isSubmitting}
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <label style={{
+              ...styles.imageUploadArea,
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              opacity: isSubmitting ? 0.5 : 1,
+            }}>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileInputChange}
+                disabled={isSubmitting}
+                style={{ display: 'none' }}
+              />
+              <div style={styles.imageUploadText}>📎 Upload Gambar</div>
+              <div style={styles.imageUploadHint}>Klik atau Ctrl+V • Maksimal 2MB</div>
+            </label>
+          )}
+          
           <div style={styles.formActions}>
             <button
               type="submit"
@@ -321,6 +477,8 @@ export function TicketList({ contactId }: TicketListProps) {
                 setIsAdding(false);
                 setTitle('');
                 setDescription('');
+                setImageFile(null);
+                setImagePreview(null);
               }}
               style={styles.buttonSecondary}
               disabled={isSubmitting}
@@ -389,6 +547,17 @@ export function TicketList({ contactId }: TicketListProps) {
                     <span>👤 {ticket.assigneeName}</span>
                   )}
                   <span>📅 {formatDate(ticket.createdAt)}</span>
+                  {ticket.imageUrl && (
+                    <a 
+                      href={ticket.imageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.attachmentLink}
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      📎 Lampiran
+                    </a>
+                  )}
                 </div>
               </div>
             );

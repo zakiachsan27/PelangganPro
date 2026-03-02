@@ -54,7 +54,7 @@ export function RecentActivities() {
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : hasData ? (
-          <div className="space-y-3 max-h-[200px] overflow-y-auto">
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
             {activities.map((activity) => (
               <div key={activity.id} className="flex items-start gap-3 text-sm">
                 <div className="w-2 h-2 rounded-full bg-primary mt-2 shrink-0" />

@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Send, User, Loader2, Calendar, MessageSquare } from "lucide-react";
+import { Send, User, Loader2, Calendar, MessageSquare, Image as ImageIcon, ExternalLink } from "lucide-react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { formatRelativeTime, getInitials } from "@/lib/format";
 import { toast } from "sonner";
@@ -184,6 +184,32 @@ export function TicketDetailDialog({ ticket, open, onOpenChange, onUpdated }: Ti
               {ticket.description}
             </p>
           </div>
+
+          {/* Attachment */}
+          {ticket.image_url && (
+            <div className="bg-slate-50 rounded-lg p-4 border border-slate-100">
+              <div className="flex items-center gap-2 mb-3">
+                <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-medium">Lampiran</span>
+              </div>
+              <div className="relative group">
+                <img 
+                  src={ticket.image_url} 
+                  alt="Lampiran ticket" 
+                  className="max-h-[200px] rounded-lg border border-slate-200 object-contain"
+                />
+                <a 
+                  href={ticket.image_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="absolute top-2 right-2 bg-white/90 hover:bg-white text-slate-700 px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 shadow-sm border border-slate-200 opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  Lihat Penuh
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Quick Actions */}
           <div className="grid grid-cols-2 gap-4">
